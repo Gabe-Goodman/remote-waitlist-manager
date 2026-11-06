@@ -1,5 +1,61 @@
 # Remote Waitlist Manager
 
+Diners at a fully booked restaurant join a virtual waitlist from their phone, see their place in the queue, and check in when their table is ready. The assignment is at the bottom of this file.
+
+> Work in progress: the app is being built one pull request at a time. So far it starts, connects to MongoDB and answers a health check.
+
+## Architecture
+
+```
+src/
+├── routes/
+│   └── waitlistRoutes.tsx   HTTP only: every URL; so far GET /health, which pings MongoDB
+└── server.ts                wiring: settings, MongoDB connection, routes, graceful shutdown
+e2e/
+└── health.spec.ts           smoke test: the built app starts and serves /health
+```
+
+## Run it
+
+You need Docker.
+
+```sh
+docker compose up --build
+```
+
+Then open http://localhost:3000/health; it answers `ok`. From a phone on the same Wi-Fi, use your computer's IP address instead of `localhost`.
+
+If port 27017 is already in use, run `MONGO_PORT=27018 docker compose up`.
+
+## Develop
+
+You need Node 22 (`nvm use` reads `.nvmrc`) and Docker.
+
+```sh
+npm install
+npm run dev    # starts MongoDB in Docker, then the app on port 3000, reloading on changes
+```
+
+If you moved MongoDB with `MONGO_PORT`, `npm run dev` and `npm test` also need `MONGO_URL` pointed at that port, for example `MONGO_URL=mongodb://127.0.0.1:27018/waitlist npm run dev`.
+
+## Test
+
+```sh
+npm run typecheck
+npm run lint
+npm test                            # starts MongoDB in Docker, then runs Vitest
+npx playwright install chromium     # once
+npm run test:e2e                    # builds and starts the app in Docker, then runs Playwright
+```
+
+The e2e tests start their own copy of the app and stop if something already uses port 3000, so stop `npm run dev` or `docker compose` first. They run in a phone-sized browser with JavaScript turned off.
+
+---
+
+The assignment this project was built for:
+
+# Remote Waitlist Manager
+
 Remote Waitlist Manager is a full-stack application designed to handle the waitlist of your restaurant. It manages seating, queueing, and notifications for your diners. **Multiple parties** should be able to join your restaurant's waitlist **concurrently**. Instead of waiting in line to write your name on a piece of paper, you can now join the waitlist virtually and get notified when your table is ready. This will increase your restaurant's efficiency and provide a better experience for your customers.
 
 The user flow is as follows:

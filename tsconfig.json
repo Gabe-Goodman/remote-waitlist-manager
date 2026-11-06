@@ -1,0 +1,19 @@
+{
+  // Used by the editor and `npm run typecheck`: checks everything, emits nothing.
+  // The Docker build uses tsconfig.build.json, which emits src/ without tests.
+  "compilerOptions": {
+    "target": "es2023",
+    "module": "nodenext",
+    "moduleResolution": "nodenext",
+    "jsx": "react-jsx",
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "exactOptionalPropertyTypes": true,
+    "verbatimModuleSyntax": true,
+    "isolatedModules": true,
+    "skipLibCheck": true,
+    "noEmit": true,
+    "types": ["node"]
+  },
+  "include": ["src", "e2e", "*.config.ts"]
+}
