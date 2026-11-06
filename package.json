@@ -28,6 +28,10 @@
     "lint": "eslint .",
     "format": "prettier --write .",
     "pretest": "docker compose up -d --wait mongo",
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright test",
+    "build": "tsc -p tsconfig.build.json",
+    "start": "node dist/server.js",
+    "predev": "docker compose up -d --wait mongo",
+    "dev": "tsx watch src/server.ts"
   }
 }

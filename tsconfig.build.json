@@ -1,0 +1,12 @@
+{
+  // `npm run build` (used by the Docker image): compiles src/ to dist/,
+  // without the tests.
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noEmit": false,
+    "rootDir": "src",
+    "outDir": "dist"
+  },
+  "include": ["src"],
+  "exclude": ["src/**/*.test.ts", "src/**/*.test.tsx"]
+}

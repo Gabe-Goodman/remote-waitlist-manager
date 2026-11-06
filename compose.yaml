@@ -16,6 +16,20 @@ services:
       retries: 10
       start_period: 10s
 
+  app:
+    build: .
+    # Published on every interface (not just 127.0.0.1), so a phone on the
+    # same Wi-Fi can open the app.
+    ports:
+      - "3000:3000"
+    environment:
+      # Inside Compose, MongoDB is reached by its service name.
+      MONGO_URL: mongodb://mongo:27017/waitlist
+    depends_on:
+      mongo:
+        # Wait until MongoDB answers a ping, not just until it starts.
+        condition: service_healthy
+
 # Named volume: the waitlist survives `docker compose down`.
 # `docker compose down -v` deletes it.
 volumes:
