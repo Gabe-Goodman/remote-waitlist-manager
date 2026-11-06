@@ -1,0 +1,5 @@
+dist
+playwright-report
+test-results
+# Markdown is hand-written prose; leave its formatting alone.
+*.md
