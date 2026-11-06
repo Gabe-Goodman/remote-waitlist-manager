@@ -26,6 +26,7 @@
     "test": "vitest run",
     "typecheck": "tsc",
     "lint": "eslint .",
-    "format": "prettier --write ."
+    "format": "prettier --write .",
+    "pretest": "docker compose up -d --wait mongo"
   }
 }

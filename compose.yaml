@@ -1,0 +1,21 @@
+services:
+  mongo:
+    image: mongo:8.0
+    # Published on 127.0.0.1 only, so `npm run dev` and tests on the host
+    # can reach it but other machines on the network can't.
+    ports:
+      - "127.0.0.1:27017:27017"
+    volumes:
+      - mongo-data:/data/db
+    healthcheck:
+      test:
+        ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping').ok"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+
+# Named volume: the waitlist survives `docker compose down`.
+# `docker compose down -v` deletes it.
+volumes:
+  mongo-data:
