@@ -1,6 +1,6 @@
 services:
   mongo:
-    image: mongo:8.0
+    image: mongo:9.0.4
     # Published on 127.0.0.1 only, so `npm run dev` and tests on the host
     # can reach it but other machines on the network can't.
     # Set MONGO_PORT if 27017 is already in use on this machine.
