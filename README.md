@@ -8,6 +8,8 @@ Diners at a fully booked restaurant join a virtual waitlist from their phone, se
 
 ```
 src/
+├── domain/
+│   └── waitlist.ts          rules only (pure functions): validating the join form, joining, no duplicate emails
 ├── routes/
 │   └── waitlistRoutes.tsx   HTTP only: every URL; so far GET /health, which pings MongoDB
 └── server.ts                wiring: settings, MongoDB connection, routes, graceful shutdown

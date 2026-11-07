@@ -5,7 +5,5 @@ import { defineConfig } from "vitest/config";
 export default defineConfig({
   test: {
     include: ["src/**/*.test.{ts,tsx}"],
-    // Temporary: there are no tests yet. Removed with the first test.
-    passWithNoTests: true,
   },
 });
