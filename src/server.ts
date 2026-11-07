@@ -1,9 +1,14 @@
-// Starts the app: reads settings, connects to MongoDB, mounts the routes,
-// and shuts down cleanly. Wiring only: no rules and no request handling.
+// Starts the app: reads settings, connects to MongoDB, creates the waitlist
+// if it's missing, mounts the routes, and shuts down cleanly. Wiring only:
+// no rules and no request handling.
 import { serve } from "@hono/node-server";
 import { Hono } from "hono";
 import { MongoClient } from "mongodb";
 import { waitlistRoutes } from "./routes/waitlistRoutes.js";
+import {
+  waitlistStore,
+  type WaitlistDocument,
+} from "./storage/waitlistStore.js";
 
 const port = Number(process.env.PORT ?? 3000);
 const mongoUrl = process.env.MONGO_URL ?? "mongodb://127.0.0.1:27017/waitlist";
@@ -13,6 +18,7 @@ const client = new MongoClient(mongoUrl);
 // instead of failing the first diner's request.
 await client.connect();
 const db = client.db();
+await waitlistStore(db.collection<WaitlistDocument>("waitlist")).ensureExists();
 
 const app = new Hono();
 app.route(
