@@ -1,6 +1,7 @@
 // The pages and form posts, through request() against the real MongoDB from
 // Compose, one fresh collection per test. The clock and tokens are fixed.
-import { describe, expect, test } from "vitest";
+import { Hono } from "hono";
+import { afterEach, describe, expect, test, vi } from "vitest";
 import {
   maxEmailLength,
   maxNameLength,
@@ -10,6 +11,7 @@ import { freshCollection } from "../storage/testDb.js";
 import {
   waitlistStore,
   type WaitlistDocument,
+  type WaitlistStore,
 } from "../storage/waitlistStore.js";
 import { waitlistRoutes } from "./waitlistRoutes.js";
 
@@ -276,5 +278,119 @@ describe("the waiting count before joining", () => {
     expect(html).not.toContain("Ben");
     expect(html).not.toContain("Cy");
     expect(html).not.toContain("Dee");
+  });
+});
+
+describe("when joining can't go through", () => {
+  // Ten conflicts in a row can't be produced on demand with real MongoDB,
+  // so only the save is replaced; loading still reads the real waitlist.
+  function withSavesAlwaysConflicting(store: WaitlistStore): WaitlistStore {
+    return { ...store, saveIfVersion: () => Promise.resolve("conflict") };
+  }
+
+  test("asks the diner to tap Join again when the waitlist is busy, keeping what they typed", async () => {
+    const app = waitlistRoutes(
+      withSavesAlwaysConflicting(await emptyStore()),
+      env,
+    );
+
+    const response = await postJoin(app, ana);
+
+    expect(response.status).toBe(409);
+    const html = await response.text();
+    expect(html).toMatch(
+      /<div role="alert"[^>]*>Lots of people are joining right now\. Please tap Join again\.<\/div>/,
+    );
+    expect(tagWithId(html, "name")).toContain('value="Ana"');
+    expect(tagWithId(html, "email")).toContain('value="ana@example.com"');
+  });
+});
+
+describe("when something goes wrong", () => {
+  // The tests silence the server-side log of the error; put it back after.
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  // A database error can't be produced on demand with a healthy MongoDB, so
+  // only loading is replaced, and it fails the way a dropped connection does.
+  function withLoadFailing(store: WaitlistStore): WaitlistStore {
+    return {
+      ...store,
+      load: () => Promise.reject(new Error("connection to MongoDB lost")),
+    };
+  }
+
+  test("shows a friendly page when the database fails, without the error's details", async () => {
+    const log = vi.spyOn(console, "error").mockImplementation(() => {});
+    const app = waitlistRoutes(withLoadFailing(await emptyStore()), env);
+
+    const response = await app.request("/");
+
+    expect(response.status).toBe(500);
+    const html = await response.text();
+    expect(html).toContain("<h1>Something went wrong</h1>");
+    expect(html).toContain('<a href="/">Try again</a>');
+    expect(html).not.toContain("connection to MongoDB lost");
+    expect(log).toHaveBeenCalledWith(
+      expect.objectContaining({ message: "connection to MongoDB lost" }),
+    );
+  });
+
+  test("shows the friendly page when the routes are mounted in another app", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    const app = new Hono().route(
+      "/",
+      waitlistRoutes(withLoadFailing(await emptyStore()), env),
+    );
+
+    const response = await app.request("/");
+
+    expect(response.status).toBe(500);
+    const html = await response.text();
+    expect(html).toContain("<h1>Something went wrong</h1>");
+    expect(html).toContain('<a href="/">Try again</a>');
+  });
+});
+
+describe("oversized form posts", () => {
+  test("lets the largest valid form join", async () => {
+    // 50 Japanese characters: 3 bytes each in UTF-8, 9 once URL-encoded,
+    // the heaviest name the form allows.
+    const local = "a".repeat(64);
+    const largest = {
+      name: "あ".repeat(maxNameLength),
+      email: `${local}@${"b".repeat(maxEmailLength - local.length - 5)}.com`,
+      size: String(maxPartySize),
+    };
+    const response = await postJoin(await routes(), largest);
+
+    expect(response.status).toBe(303);
+  });
+
+  test("refuses a form post larger than 10 KB without saving anything", async () => {
+    const store = await emptyStore();
+    const app = waitlistRoutes(store, env);
+
+    const response = await postJoin(app, {
+      ...ana,
+      name: "x".repeat(11 * 1024),
+    });
+
+    expect(response.status).toBe(413);
+    expect(await store.load()).toEqual({
+      waitlist: { parties: [] },
+      version: 0,
+    });
+  });
+
+  test("applies the limit to every POST, not only joining", async () => {
+    const response = await postJoin(
+      await routes(),
+      { ...ana, name: "x".repeat(11 * 1024) },
+      "http://localhost/any-other-post",
+    );
+
+    expect(response.status).toBe(413);
   });
 });

@@ -29,14 +29,17 @@ export const messages = {
       : count === 1
         ? "1 party ahead of you."
         : `${count} parties ahead of you.`,
+  errorTitle: "Something went wrong",
+  tryAgain: "Try again",
 } as const;
 
 /** Form-level notices, shown in the box at the top of the form. */
-export type Notice = "fix-fields" | "duplicate";
+export type Notice = "fix-fields" | "duplicate" | "busy";
 
 export const noticeMessages: Record<Notice, string> = {
   "fix-fields": "Please fix the highlighted fields below.",
   duplicate: "A party with this email is already on the waitlist.",
+  busy: "Lots of people are joining right now. Please tap Join again.",
 };
 
 // One message for every error code the domain can return: a new code

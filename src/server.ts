@@ -14,7 +14,10 @@ import {
 const port = Number(process.env.PORT ?? 3000);
 const mongoUrl = process.env.MONGO_URL ?? "mongodb://127.0.0.1:27017/waitlist";
 
-const client = new MongoClient(mongoUrl);
+// Without this, a page waits about 30 s (the driver's default) before the
+// error page appears when MongoDB is down; 5 s is long enough for a healthy
+// server to answer and short enough for a diner to wait.
+const client = new MongoClient(mongoUrl, { serverSelectionTimeoutMS: 5000 });
 // Connect before listening, so a wrong MONGO_URL stops the app at startup
 // instead of failing the first diner's request.
 await client.connect();
