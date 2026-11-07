@@ -18,11 +18,11 @@ export type JoinValidation =
   { ok: true; details: JoinDetails } | { ok: false; errors: FieldErrors };
 
 // Long enough for any party name, short enough to fit on the card on a phone.
-const maxNameLength = 50;
+export const maxNameLength = 50;
 // No party can be larger than the restaurant's 10 seats.
-const maxPartySize = 10;
+export const maxPartySize = 10;
 // The longest address SMTP allows.
-const maxEmailLength = 254;
+export const maxEmailLength = 254;
 
 // Deliberately loose: anything shaped like x@y.z. Only a sent email could
 // prove an address works, and the app sends none.
@@ -106,4 +106,30 @@ export function join(
     waitlist: { parties: [...waitlist.parties, party] },
     party,
   };
+}
+
+/**
+ * How many parties a newcomer would have ahead of them. Every party on the
+ * waitlist is waiting: no party can leave or finish.
+ */
+export function partiesWaiting(waitlist: Waitlist): number {
+  return waitlist.parties.length;
+}
+
+/** A party and how many parties are ahead of it in the queue. */
+export type PartyPlace = { party: Party; ahead: number };
+
+/**
+ * Finds the party with this token. The parties ahead of it are counted by
+ * the same rule as for a newcomer, over the queue in front of it.
+ */
+export function partyPlace(
+  waitlist: Waitlist,
+  token: string,
+): PartyPlace | undefined {
+  const index = waitlist.parties.findIndex((party) => party.token === token);
+  const party = waitlist.parties[index];
+  if (!party) return undefined;
+  const inFront = { parties: waitlist.parties.slice(0, index) };
+  return { party, ahead: partiesWaiting(inFront) };
 }
