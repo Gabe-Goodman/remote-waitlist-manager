@@ -10,9 +10,14 @@ Diners at a fully booked restaurant join a virtual waitlist from their phone, se
 src/
 ├── domain/
 │   └── waitlist.ts          rules only (pure functions): validating the join form, joining, no duplicate emails
+├── services/
+│   └── waitlistService.ts   use cases: load, apply a rule, save only if nobody saved in between, retry on conflict
+├── storage/
+│   ├── waitlistStore.ts     MongoDB only: the whole waitlist in one versioned document
+│   └── testDb.ts            test helper: a fresh collection per test in its own database
 ├── routes/
 │   └── waitlistRoutes.tsx   HTTP only: every URL; so far GET /health, which pings MongoDB
-└── server.ts                wiring: settings, MongoDB connection, routes, graceful shutdown
+└── server.ts                wiring: settings, MongoDB connection, creating the waitlist, routes, graceful shutdown
 e2e/
 └── health.spec.ts           smoke test: the built app starts and serves /health
 ```
@@ -38,7 +43,7 @@ npm install
 npm run dev    # starts MongoDB in Docker, then the app on port 3000, reloading on changes
 ```
 
-If you moved MongoDB with `MONGO_PORT`, `npm run dev` and `npm test` also need `MONGO_URL` pointed at that port, for example `MONGO_URL=mongodb://127.0.0.1:27018/waitlist npm run dev`.
+If you moved MongoDB with `MONGO_PORT`, point the app and the tests at that port too: `MONGO_URL=mongodb://127.0.0.1:27018/waitlist npm run dev` and `MONGO_TEST_URL=mongodb://127.0.0.1:27018/waitlist_test npm test`.
 
 ## Test
 
