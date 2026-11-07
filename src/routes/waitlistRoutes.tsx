@@ -1,7 +1,9 @@
 // HTTP only: every URL the app answers. The rules live in domain/, the use
 // cases in services/; this file reads requests and picks the response.
 import { Hono } from "hono";
+import { bodyLimit } from "hono/body-limit";
 import { deleteCookie, getCookie, setCookie } from "hono/cookie";
+import { HTTPException } from "hono/http-exception";
 import type { JoinForm } from "../domain/waitlist.js";
 import {
   findParty,
@@ -10,11 +12,17 @@ import {
   type Environment,
 } from "../services/waitlistService.js";
 import type { WaitlistStore } from "../storage/waitlistStore.js";
+import { ErrorPage } from "../views/errorPage.js";
 import { toHtml } from "../views/html.js";
 import { WaitlistPage } from "../views/waitlistPage.js";
 
 export function waitlistRoutes(store: WaitlistStore, env: Environment): Hono {
   const routes = new Hono();
+
+  // Registered first, so every POST route below it, now and later, refuses
+  // bodies over 10 KB, so no route reads more than that. The largest valid
+  // join form is 726 bytes, so anything bigger didn't come from the form.
+  routes.post("*", bodyLimit({ maxSize: 10 * 1024 }));
 
   routes.get("/", async (c) => {
     const token = getCookie(c, "party");
@@ -58,14 +66,25 @@ export function waitlistRoutes(store: WaitlistStore, env: Environment): Hono {
         422,
       );
     }
-    if (outcome.reason === "duplicate") {
-      const refused = { values: form, notice: "duplicate" as const };
-      return c.html(
-        toHtml(<WaitlistPage waiting={waiting} refused={refused} />),
-        409,
-      );
-    }
-    throw new Error("join refused: busy");
+    // Duplicate and busy keep what was typed too; only the notice differs.
+    // Busy is 409, not 503: the save conflicted with others; the server
+    // itself is fine, and tapping Join again will most likely work.
+    const refused = { values: form, notice: outcome.reason };
+    return c.html(
+      toHtml(<WaitlistPage waiting={waiting} refused={refused} />),
+      409,
+    );
+  });
+
+  // Any error a route throws (a database outage, a bug) ends here: the
+  // details go to the server log, the diner gets a plain page with a Try
+  // again link.
+  routes.onError((error, c) => {
+    // An HTTPException already carries the right answer (the body limit's
+    // 413); only unexpected errors become the 500 page.
+    if (error instanceof HTTPException) return error.getResponse();
+    console.error(error);
+    return c.html(toHtml(<ErrorPage />), 500);
   });
 
   routes.get("/health", async (c) => {

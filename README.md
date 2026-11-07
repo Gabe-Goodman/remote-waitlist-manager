@@ -20,6 +20,7 @@ src/
 ├── views/
 │   ├── waitlistPage.tsx     the one / page: the join form, or the party's card
 │   ├── partyCard.tsx        the party's current state: name, size, parties ahead
+│   ├── errorPage.tsx        the friendly page when something goes wrong
 │   ├── layout.tsx           the HTML shell every page shares
 │   ├── messages.ts          every word a diner reads
 │   └── html.ts              toHtml: a page as an HTML document
