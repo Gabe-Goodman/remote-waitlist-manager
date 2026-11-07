@@ -1,6 +1,7 @@
 // Starts the app: reads settings, connects to MongoDB, creates the waitlist
 // if it's missing, mounts the routes, and shuts down cleanly. Wiring only:
 // no rules and no request handling.
+import { randomBytes } from "node:crypto";
 import { serve } from "@hono/node-server";
 import { Hono } from "hono";
 import { MongoClient } from "mongodb";
@@ -18,15 +19,19 @@ const client = new MongoClient(mongoUrl);
 // instead of failing the first diner's request.
 await client.connect();
 const db = client.db();
-await waitlistStore(db.collection<WaitlistDocument>("waitlist")).ensureExists();
+const store = waitlistStore(db.collection<WaitlistDocument>("waitlist"));
+await store.ensureExists();
+
+// The real clock and real tokens; tests pass their own.
+const env = {
+  now: () => new Date(),
+  // 128 random bits: a party's token is the key to its party, so it must not
+  // be guessable.
+  newToken: () => randomBytes(16).toString("base64url"),
+};
 
 const app = new Hono();
-app.route(
-  "/",
-  waitlistRoutes(async () => {
-    await db.command({ ping: 1 });
-  }),
-);
+app.route("/", waitlistRoutes(store, env));
 
 const server = serve({ fetch: app.fetch, port }, (info) => {
   console.log(`Listening on http://localhost:${info.port}`);

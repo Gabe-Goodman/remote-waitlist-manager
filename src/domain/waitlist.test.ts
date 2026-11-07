@@ -1,6 +1,12 @@
 // The joining rules as unit tests: plain values in and out, no database.
 import { describe, expect, test } from "vitest";
-import { join, validateJoin, type Party } from "./waitlist.js";
+import {
+  join,
+  partiesWaiting,
+  partyPlace,
+  validateJoin,
+  type Party,
+} from "./waitlist.js";
 
 const valid = { name: "Ana", email: "ana@example.com", size: "2" };
 
@@ -169,5 +175,30 @@ describe("never on the list twice", () => {
       reason: "invalid",
       errors: { size: "invalid" },
     });
+  });
+});
+
+describe("your place in the queue", () => {
+  test("counts the parties ahead of you", () => {
+    const waitlist = {
+      parties: [partyNamed("Ben"), partyNamed("Cy"), partyNamed("Ana")],
+    };
+
+    const place = partyPlace(waitlist, "token-Ana");
+
+    expect(place?.party.name).toBe("Ana");
+    expect(place?.ahead).toBe(2);
+  });
+
+  test("gives a newcomer every waiting party ahead of them", () => {
+    const waitlist = { parties: [partyNamed("Ben"), partyNamed("Cy")] };
+
+    expect(partiesWaiting(waitlist)).toBe(2);
+  });
+
+  test("doesn't know a token that isn't on the waitlist", () => {
+    const waitlist = { parties: [partyNamed("Ben")] };
+
+    expect(partyPlace(waitlist, "token-nobody")).toBeUndefined();
   });
 });

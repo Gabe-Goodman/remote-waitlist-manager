@@ -2,24 +2,31 @@
 
 Diners at a fully booked restaurant join a virtual waitlist from their phone, see their place in the queue, and check in when their table is ready. The assignment is at the bottom of this file.
 
-> Work in progress: the app is being built one pull request at a time. So far it starts, connects to MongoDB and answers a health check.
+> Work in progress: the app is being built one pull request at a time. So far a diner can join the waitlist and see their place in the queue.
 
 ## Architecture
 
 ```
 src/
 ├── domain/
-│   └── waitlist.ts          rules only (pure functions): validating the join form, joining, no duplicate emails
+│   └── waitlist.ts          rules only (pure functions): validating the join form, joining, no duplicate emails, counting parties ahead
 ├── services/
 │   └── waitlistService.ts   use cases: load, apply a rule, save only if nobody saved in between, retry on conflict
 ├── storage/
 │   ├── waitlistStore.ts     MongoDB only: the whole waitlist in one versioned document
 │   └── testDb.ts            test helper: a fresh collection per test in its own database
 ├── routes/
-│   └── waitlistRoutes.tsx   HTTP only: every URL; so far GET /health, which pings MongoDB
+│   └── waitlistRoutes.tsx   HTTP only: every URL (/, POST /parties, /health), the party cookie
+├── views/
+│   ├── waitlistPage.tsx     the one / page: the join form, or the party's card
+│   ├── partyCard.tsx        the party's current state: name, size, parties ahead
+│   ├── layout.tsx           the HTML shell every page shares
+│   ├── messages.ts          every word a diner reads
+│   └── html.ts              toHtml: a page as an HTML document
 └── server.ts                wiring: settings, MongoDB connection, creating the waitlist, routes, graceful shutdown
 e2e/
-└── health.spec.ts           smoke test: the built app starts and serves /health
+├── health.spec.ts           smoke test: the built app starts and serves /health
+└── waitlist.spec.ts         diner journeys, JavaScript off
 ```
 
 ## Run it
@@ -30,7 +37,7 @@ You need Docker.
 docker compose up --build
 ```
 
-Then open http://localhost:3000/health; it answers `ok`. From a phone on the same Wi-Fi, use your computer's IP address instead of `localhost`.
+Then open http://localhost:3000 to join the waitlist. From a phone on the same Wi-Fi, use your computer's IP address instead of `localhost`.
 
 If port 27017 is already in use, run `MONGO_PORT=27018 docker compose up`.
 

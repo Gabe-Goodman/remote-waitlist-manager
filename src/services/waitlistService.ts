@@ -3,9 +3,12 @@
 import { setTimeout as sleep } from "node:timers/promises";
 import {
   join,
+  partiesWaiting,
+  partyPlace,
   type FieldErrors,
   type JoinForm,
   type Party,
+  type PartyPlace,
 } from "../domain/waitlist.js";
 import type { WaitlistStore } from "../storage/waitlistStore.js";
 
@@ -62,4 +65,19 @@ export async function joinWaitlist(
   }, maxAttempts);
 
   return outcome === "busy" ? { ok: false, reason: "busy" } : outcome;
+}
+
+/** The party with this token and its place in the queue, if it's there. */
+export async function findParty(
+  store: WaitlistStore,
+  token: string,
+): Promise<PartyPlace | undefined> {
+  const { waitlist } = await store.load();
+  return partyPlace(waitlist, token);
+}
+
+/** How many parties are waiting: what a newcomer would have ahead of them. */
+export async function waitingCount(store: WaitlistStore): Promise<number> {
+  const { waitlist } = await store.load();
+  return partiesWaiting(waitlist);
 }
