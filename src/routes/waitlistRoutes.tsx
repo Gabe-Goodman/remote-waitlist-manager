@@ -59,6 +59,28 @@ export function waitlistRoutes(store: WaitlistStore, env: Environment): Hono {
     return c.html(toHtml(<WaitlistPage waiting={waiting} />));
   });
 
+  // The done card's "Join the waitlist again" link. It only shows the form:
+  // nothing changes until the diner joins, when POST /parties replaces the
+  // finished party in this browser. So a reload, a prefetch or a link
+  // preview is harmless, and a party that doesn't join still sees its
+  // thank-you card at /.
+  routes.get("/join-again", async (c) => {
+    const token = getCookie(c, "party");
+    const found = token ? await findParty(store, env, token) : undefined;
+    // Only a finished party can join again; anyone else has nothing to
+    // start over, so they go back to /.
+    if (found?.state.kind !== "done") return c.redirect("/", 303);
+    // Most likely the same diner, so their name and email are filled in.
+    // The size is asked again: the group may not be the same this time.
+    const { name, email } = found.party;
+    const waiting = await waitingCount(store);
+    return c.html(
+      toHtml(
+        <WaitlistPage waiting={waiting} values={{ name, email, size: "" }} />,
+      ),
+    );
+  });
+
   routes.post("/parties", async (c) => {
     // One active party per browser. A stale form (back button, old tab) must
     // neither change the party's details nor add a second place in the

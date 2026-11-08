@@ -471,19 +471,19 @@ describe("the party's link", () => {
   });
 });
 
+/** Posts the card's Check-in button, the way a browser does. */
+function postCheckIn(app: Hono, cookie?: string) {
+  return app.request("/check-in", {
+    method: "POST",
+    headers: cookie ? { Cookie: cookie } : {},
+  });
+}
+
+async function cardHtml(app: Hono, cookie: string): Promise<string> {
+  return (await app.request("/", { headers: { Cookie: cookie } })).text();
+}
+
 describe("checking in", () => {
-  /** Posts the card's Check-in button, the way a browser does. */
-  function postCheckIn(app: Hono, cookie?: string) {
-    return app.request("/check-in", {
-      method: "POST",
-      headers: cookie ? { Cookie: cookie } : {},
-    });
-  }
-
-  async function cardHtml(app: Hono, cookie: string): Promise<string> {
-    return (await app.request("/", { headers: { Cookie: cookie } })).text();
-  }
-
   test("shows a party whose table is ready the Check-in button", async () => {
     const app = await routes();
     const anasCookie = partyCookie(await postJoin(app, ana));
@@ -618,6 +618,80 @@ describe("checking in", () => {
     expect(opened.status).toBe(303);
     expect(opened.headers.get("Location")).toBe("/");
     expect(partyCookie(opened)).toBe(bensCookie);
+  });
+});
+
+describe("joining again", () => {
+  /** A browser whose party of 2 has checked in, and the clock it runs on. */
+  async function checkedInParty() {
+    const clock = movableClock();
+    const app = waitlistRoutes(await emptyStore(), clock.env);
+    const anasCookie = partyCookie(await postJoin(app, ana));
+    await postCheckIn(app, anasCookie);
+    return { app, clock, anasCookie };
+  }
+
+  test("offers a finished party a link to join the waitlist again", async () => {
+    const { app, clock, anasCookie } = await checkedInParty();
+    // A party of 2 is served for 2 × 3 seconds.
+    clock.advance(6000);
+
+    const html = await cardHtml(app, anasCookie);
+
+    expect(html).toContain('<a href="/join-again">Join the waitlist again</a>');
+    expect(html).not.toContain("<button");
+  });
+
+  test("shows a finished party the join form with its name and email, without forgetting its party", async () => {
+    const { app, clock, anasCookie } = await checkedInParty();
+    clock.advance(6000);
+
+    const response = await app.request("/join-again", {
+      headers: { Cookie: anasCookie },
+    });
+
+    const html = await response.text();
+    expect(html).toMatch(/<form [^>]*action="\/parties"/);
+    expect(tagWithId(html, "name")).toContain('value="Ana"');
+    expect(tagWithId(html, "email")).toContain('value="ana@example.com"');
+    // The group may have changed, so the size is asked again.
+    expect(html).toMatch(/<option value="" disabled="" selected="">/);
+    expect(response.headers.get("Set-Cookie")).toBeNull();
+    expect(await cardHtml(app, anasCookie)).toContain(
+      "<h1>Thanks for dining with us.</h1>",
+    );
+  });
+
+  test("sends an active party back to its card from /join-again, keeping its place", async () => {
+    const app = await routes();
+    const anasCookie = partyCookie(await postJoin(app, ana));
+    const bensCookie = partyCookie(
+      await postJoin(app, { name: "Ben", email: "ben@example.com", size: "2" }),
+    );
+    await postCheckIn(app, bensCookie);
+
+    const ready = await app.request("/join-again", {
+      headers: { Cookie: anasCookie },
+    });
+    const inService = await app.request("/join-again", {
+      headers: { Cookie: bensCookie },
+    });
+
+    for (const response of [ready, inService]) {
+      expect(response.status).toBe(303);
+      expect(response.headers.get("Location")).toBe("/");
+      expect(response.headers.get("Set-Cookie")).toBeNull();
+    }
+    expect(await cardHtml(app, anasCookie)).toContain(
+      "<h1>Your table is ready!</h1>",
+    );
+  });
+
+  test("sends a browser without a party from /join-again to the join form", async () => {
+    const response = await (await routes()).request("/join-again");
+
+    expect(response.status).toBe(303);
+    expect(response.headers.get("Location")).toBe("/");
   });
 });
 

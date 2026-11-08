@@ -27,7 +27,7 @@ const styles = `
      8px inside a group, 24px between groups. */
   h1 + * { margin-top: var(--spacing-l2); }
   p + p { margin-top: var(--spacing-l2); }
-  form, .place, .share { margin-top: var(--spacing-l5); }
+  form, .place, .share, .join-again { margin-top: var(--spacing-l5); }
   form > :first-child { margin-top: 0; }
   label { display: block; margin-top: var(--spacing-l4); }
   button { width: 100%; margin-top: var(--spacing-l5); }

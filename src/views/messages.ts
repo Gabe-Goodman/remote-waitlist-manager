@@ -32,6 +32,7 @@ export const messages = {
   checkInNow: "Check in now.",
   checkInButton: "Check in",
   enjoyMeal: "Enjoy your meal.",
+  joinAgain: "Join the waitlist again",
   partyLinkLabel: "Your party's link",
   partyLinkHint:
     "Share it with the rest of your party, or open it on another device. Anyone with this link can see your place on the waitlist and check in for you.",

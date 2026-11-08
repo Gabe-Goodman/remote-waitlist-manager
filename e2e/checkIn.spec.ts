@@ -29,7 +29,7 @@ async function reloadUntilVisible(page: Page, target: Locator): Promise<void> {
   }).toPass({ timeout: 10_000 });
 }
 
-test("lets the next party check in once a service ends", async ({
+test("lets the next party check in once a service ends, and the first join again", async ({
   browser,
   page,
 }) => {
@@ -75,5 +75,17 @@ test("lets the next party check in once a service ends", async ({
   await expect(heading(otherPage, "You're checked in.")).toBeVisible();
 
   await reloadUntilVisible(page, heading(page, "Thanks for dining with us."));
+
+  // Ana comes back: her name and email are filled in, the size is asked
+  // again, and her finished party no longer holds her email.
+  await page.getByRole("link", { name: "Join the waitlist again" }).click();
+  await expect(page.getByLabel("Name")).toHaveValue("Ana");
+  await expect(page.getByLabel("Email")).toHaveValue("ana@example.com");
+  await page.getByLabel("Party size").selectOption("1");
+  await page.getByRole("button", { name: "Join the waitlist" }).click();
+  // Ben's 10 seats are in service, so Ana waits at the front this time.
+  await expect(heading(page, "You're on the waitlist")).toBeVisible();
+  await expect(page.getByText("Ana, party of 1")).toBeVisible();
+
   await other.close();
 });
