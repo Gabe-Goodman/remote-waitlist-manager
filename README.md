@@ -16,10 +16,11 @@ src/
 │   ├── waitlistStore.ts     MongoDB only: the whole waitlist in one versioned document
 │   └── testDb.ts            test helper: a fresh collection per test in its own database
 ├── routes/
-│   └── waitlistRoutes.tsx   HTTP only: every URL (/, POST /parties, /health), the party cookie, compression
+│   └── waitlistRoutes.tsx   HTTP only: every URL (/, POST /parties, /party/:token, /health), the party cookie, compression
 ├── views/
 │   ├── waitlistPage.tsx     the one / page: the join form, or the party's card
-│   ├── partyCard.tsx        the party's current state: name, size, parties ahead
+│   ├── partyCard.tsx        the party's current state: name, size, parties ahead, its link to copy
+│   ├── copyScript.ts        the card's only script: the Copy button for the party's link
 │   ├── errorPage.tsx        the friendly page when something goes wrong
 │   ├── layout.tsx           the HTML shell every page shares; carries TableKit's classless stylesheet inline
 │   ├── messages.ts          every word a diner reads
@@ -27,7 +28,8 @@ src/
 └── server.ts                wiring: settings, MongoDB connection, creating the waitlist, routes, graceful shutdown
 e2e/
 ├── health.spec.ts           smoke test: the built app starts and serves /health
-└── waitlist.spec.ts         diner journeys, JavaScript off
+├── waitlist.spec.ts         diner journeys, JavaScript off
+└── copyLink.spec.ts         JavaScript on: the Copy button copies the party's link
 ```
 
 ## Run it
@@ -63,7 +65,7 @@ npx playwright install chromium     # once
 npm run test:e2e                    # builds and starts the app in Docker, then runs Playwright
 ```
 
-The e2e tests start their own copy of the app and stop if something already uses port 3000, so stop `npm run dev` or `docker compose` first. They run in a phone-sized browser with JavaScript turned off.
+The e2e tests start their own copy of the app and stop if something already uses port 3000, so stop `npm run dev` or `docker compose` first. They run in a phone-sized browser with JavaScript turned off, except `copyLink.spec.ts`, which needs it for the Copy button.
 
 ---
 

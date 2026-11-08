@@ -29,6 +29,13 @@ export const messages = {
       : count === 1
         ? "1 party ahead of you."
         : `${count} parties ahead of you.`,
+  partyLinkLabel: "Your party's link",
+  partyLinkHint:
+    "Share it with the rest of your party, or open it on another device. Anyone with this link can see your place on the waitlist.",
+  copyLink: "Copy link",
+  copiedLink: "Link copied",
+  otherPartyLink:
+    "You're already on the waitlist. To see another party's place, open their link on another phone or browser.",
   errorTitle: "Something went wrong",
   tryAgain: "Try again",
 } as const;

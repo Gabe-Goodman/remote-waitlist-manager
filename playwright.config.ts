@@ -6,8 +6,9 @@ export default defineConfig({
   testDir: "e2e",
   use: {
     baseURL,
-    // Every test runs with JavaScript off: the whole suite passing proves
-    // the app is server-rendered and works without client code.
+    // JavaScript off by default: the suite passing proves the app is
+    // server-rendered and works without client code. Only copyLink.spec.ts
+    // turns it on, for the Copy button.
     javaScriptEnabled: false,
   },
   // Diners use phones, so tests run in a phone-sized browser.

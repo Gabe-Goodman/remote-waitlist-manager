@@ -40,14 +40,25 @@ const noValues: JoinForm = { name: "", email: "", size: "" };
 // Either the party's card, or the join form with the waiting count: the
 // form can't be shown without the count.
 type WaitlistPageProps =
-  | { place: PartyPlace }
+  | { place: PartyPlace; origin: string; notice?: "other-party" }
   | { place?: undefined; waiting: number; refused?: RefusedJoin };
 
 export function WaitlistPage(props: WaitlistPageProps) {
   if (props.place) {
     return (
       <Layout title={messages.onWaitlistTitle}>
-        <PartyCard place={props.place} />
+        {/* role="status", not "alert": this informs, it isn't an error. */}
+        {props.notice && (
+          <div
+            role="status"
+            className="alert"
+            data-variant="info"
+            data-layout="text-only"
+          >
+            {messages.otherPartyLink}
+          </div>
+        )}
+        <PartyCard place={props.place} origin={props.origin} />
       </Layout>
     );
   }
