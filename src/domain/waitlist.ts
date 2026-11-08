@@ -126,8 +126,7 @@ export function joinWaitlist(
   }
 
   // A party must never appear twice while it holds a place. A party that
-  // finished, left or ran out of time no longer counts, so the same diner
-  // can come back.
+  // finished or left no longer counts, so the same diner can come back.
   const { email } = validation.details;
   const taken = active.some((party) => party.email === email);
   if (taken) {
@@ -151,15 +150,14 @@ export function joinWaitlist(
 /**
  * How many parties a newcomer would have ahead of them: those still waiting
  * or ready. A party that has checked in has left the queue for its table,
- * and a party that left or ran out of time has given up its place.
+ * and a party that left has given up its place.
  */
-export function partiesWaiting(waitlist: Waitlist, now: Date): number {
-  const timeline = replay(waitlist, now);
-  return waitlist.parties.filter((party) => inQueue(party, timeline)).length;
+export function partiesWaiting(waitlist: Waitlist): number {
+  return waitlist.parties.filter(inQueue).length;
 }
 
-function inQueue(party: Party, timeline: Timeline): boolean {
-  return !party.checkedInAt && !party.leftAt && !ranOut(party, timeline);
+function inQueue(party: Party): boolean {
+  return !party.checkedInAt && !party.leftAt;
 }
 
 /** A party and how many parties are ahead of it in the queue. */
@@ -172,24 +170,11 @@ export type PartyPlace = { party: Party; ahead: number };
 export function partyPlace(
   waitlist: Waitlist,
   token: string,
-  now: Date,
-): PartyPlace | undefined {
-  return placeIn(waitlist, token, replay(waitlist, now));
-}
-
-function placeIn(
-  waitlist: Waitlist,
-  token: string,
-  timeline: Timeline,
 ): PartyPlace | undefined {
   const index = waitlist.parties.findIndex((party) => party.token === token);
   const party = waitlist.parties[index];
   if (!party) return undefined;
-  // The timeline covers the whole queue: who ran out of time depends on
-  // every party, not only those in front.
-  const ahead = waitlist.parties
-    .slice(0, index)
-    .filter((p) => inQueue(p, timeline)).length;
+  const ahead = waitlist.parties.slice(0, index).filter(inQueue).length;
   return { party, ahead };
 }
 
@@ -215,13 +200,12 @@ export function isDone(party: Party, now: Date): boolean {
 }
 
 /**
- * The parties that still hold a place: not finished, not left and not out
- * of time. Only these block their email and their join key.
+ * The parties that still hold a place: not finished and not left. Only
+ * these block their email and their join key.
  */
 export function activeParties(waitlist: Waitlist, now: Date): Party[] {
-  const timeline = replay(waitlist, now);
   return waitlist.parties.filter(
-    (party) => !isDone(party, now) && !party.leftAt && !ranOut(party, timeline),
+    (party) => !isDone(party, now) && !party.leftAt,
   );
 }
 
@@ -229,106 +213,20 @@ function totalSize(parties: readonly Party[]): number {
   return parties.reduce((sum, party) => sum + party.size, 0);
 }
 
-// The demo's check-in window, the same for every party. A real restaurant
-// would give about 10 minutes.
-export const checkInWindowMs = 60_000;
-
 /**
  * The parties whose table is ready at `now`, in queue order. Derived from
  * stored facts, never stored: time alone frees seats, so a stale snapshot
- * can only under-count free seats, never overbook.
+ * can only under-count free seats, never overbook. A ready party keeps its
+ * table until it checks in or leaves: there is no time limit.
  */
 export function readyParties(waitlist: Waitlist, now: Date): Party[] {
-  return replay(waitlist, now).ready;
-}
-
-/** The evening up to `now`, rebuilt from the stored facts. */
-type Timeline = {
-  now: number;
-  /** The parties ready at `now`, in queue order. */
-  ready: Party[];
-  /** When each party that has been ready became ready, by token. */
-  readySince: ReadonlyMap<string, number>;
-};
-
-/**
- * A ready party has `checkInWindowMs` from the moment its table became
- * ready. That moment is never stored (time passing can cause it, with no
- * request to record it), so it is rebuilt by replaying the facts in time
- * order. Who is ready can only change when a party joins, checks in or
- * leaves, a service ends, or a ready party's time runs out, so the replay
- * jumps from one of those moments to the next and asks the ready rule at
- * each. A ready party stays ready until it checks in, leaves or runs out of
- * time, since nothing else takes its seats; so "ready since" is the first
- * moment it was ready.
- *
- * Example: Ana (8) and then Ben (3) join at 18:00:20. Ana is ready, with
- * until 18:01:20; Ben waits, as 8 + 3 > 10. At 18:01:20 Ana hasn't checked
- * in: her time has run out, her seats are free, and Ben is ready, with until
- * 18:02:20.
- */
-function replay(waitlist: Waitlist, now: Date): Timeline {
-  const end = now.getTime();
-  const factTimes = waitlist.parties
-    .flatMap((p) => [p.joinedAt, p.checkedInAt, p.leftAt, serviceEndsAt(p)])
-    .filter((time) => time !== undefined)
-    .map((time) => time.getTime())
-    .filter((time) => time <= end);
-  const readySince = new Map<string, number>();
-  let ready: Party[] = [];
-  // Infinity when there are no facts yet: nothing to replay.
-  let at = Math.min(...factTimes);
-  while (at <= end) {
-    ready = readyAt(waitlist.parties, at, readySince);
-    for (const party of ready) {
-      if (!readySince.has(party.token)) readySince.set(party.token, at);
-    }
-    const deadlines = ready.map((party) => deadline(party, readySince));
-    at = Math.min(...[...factTimes, ...deadlines].filter((t) => t > at));
-  }
-  return { now: end, ready, readySince };
-}
-
-// The same window for every party, from the moment its table is ready.
-// Infinity for a party that has never been ready: it can't run out of time.
-function deadline(party: Party, readySince: ReadonlyMap<string, number>) {
-  return (readySince.get(party.token) ?? Infinity) + checkInWindowMs;
-}
-
-/** Was ready, and neither checked in nor left before its time ran out. */
-function ranOut(party: Party, timeline: Timeline): boolean {
-  return (
-    !party.checkedInAt &&
-    !party.leftAt &&
-    deadline(party, timeline.readySince) <= timeline.now
-  );
-}
-
-/** The ready parties at one moment of the replay. */
-function readyAt(
-  parties: readonly Party[],
-  at: number,
-  readySince: ReadonlyMap<string, number>,
-): Party[] {
-  const when = new Date(at);
-  // Seated at that moment: checked in by then and not yet finished. A
-  // check-in that came later holds no seats earlier in the replay, or it
-  // would rewrite the past and could bring an expired party back.
-  const seated = parties.filter(
-    (party) =>
-      party.checkedInAt !== undefined &&
-      party.checkedInAt.getTime() <= at &&
-      isInService(party, when),
-  );
+  const seated = waitlist.parties.filter((party) => isInService(party, now));
   let free = seatCount - totalSize(seated);
   const ready: Party[] = [];
-  for (const party of parties) {
-    if (party.joinedAt.getTime() > at) continue;
-    // A party that checked in, left or ran out of time holds no queue seats:
-    // they go to the next party that fits, from this same moment.
-    const gone = party.checkedInAt ?? party.leftAt;
-    if (gone && gone.getTime() <= at) continue;
-    if (deadline(party, readySince) <= at) continue;
+  for (const party of waitlist.parties) {
+    // A party that checked in or left holds no queue seats: they go to the
+    // next party that fits.
+    if (party.checkedInAt || party.leftAt) continue;
     // First come, first served: at the first party that doesn't fit, everyone
     // behind it waits too, even a smaller party that would fit. The price is
     // idle seats behind a large party.
@@ -352,29 +250,23 @@ export function seatsAvailable(waitlist: Waitlist, now: Date): number {
 /** Where a party stands right now, derived from the stored facts. */
 export type PartyState =
   | { kind: "waiting"; ahead: number }
-  | { kind: "ready"; checkInBy: Date }
+  | { kind: "ready" }
   | { kind: "in-service" }
   | { kind: "done" }
-  | { kind: "left" }
-  | { kind: "expired" };
+  | { kind: "left" };
 
 export function partyState(
   waitlist: Waitlist,
   token: string,
   now: Date,
 ): PartyState | undefined {
-  const timeline = replay(waitlist, now);
-  const place = placeIn(waitlist, token, timeline);
+  const place = partyPlace(waitlist, token);
   if (!place) return undefined;
   const { party, ahead } = place;
   if (party.leftAt) return { kind: "left" };
   if (isInService(party, now)) return { kind: "in-service" };
   if (isDone(party, now)) return { kind: "done" };
-  if (ranOut(party, timeline)) return { kind: "expired" };
-  if (timeline.ready.includes(party)) {
-    const checkInBy = new Date(deadline(party, timeline.readySince));
-    return { kind: "ready", checkInBy };
-  }
+  if (readyParties(waitlist, now).includes(party)) return { kind: "ready" };
   return { kind: "waiting", ahead };
 }
 

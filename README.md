@@ -2,7 +2,7 @@
 
 Diners at a fully booked restaurant join a virtual waitlist from their phone, see their place in the queue, and check in when their table is ready. The assignment is at the bottom of this file.
 
-> Work in progress: the app is being built one pull request at a time. So far a diner can join the waitlist, watch their place in the queue update on its own, share their party's link, leave, check in when their table is ready (within a minute, or lose their place), and join again after their meal.
+> Work in progress: the app is being built one pull request at a time. So far a diner can join the waitlist, watch their place in the queue update on its own, share their party's link, leave, check in when their table is ready (it's held until they check in or leave), and join again after their meal.
 
 ## Architecture
 
@@ -10,10 +10,10 @@ Diners at a fully booked restaurant join a virtual waitlist from their phone, se
 browser/                     what runs or applies in the diner's browser, inlined into the page
 ├── page.css                 the page's own CSS: layout rules on top of TableKit
 ├── copyLink.js              the Copy button: copies the party's link to the phone's clipboard
-└── liveCard.js              keeps the card up to date (fetches /card every 2 s, swaps it when it changes) and counts down the time left to check in
+└── liveCard.js              keeps the card up to date: fetches the party's /card every 2 s and swaps it when it changes
 src/                         what runs on the server
 ├── domain/
-│   └── waitlist.ts          rules only (pure functions): validating the join form, joining, no duplicate emails, parties ahead, service time, who is ready (strict order, seats held), the check-in deadline and running out of time, seats available, where each party stands
+│   └── waitlist.ts          rules only (pure functions): validating the join form, joining, no duplicate emails, parties ahead, service time, who is ready (strict order, seats held until check-in or leaving), seats available, where each party stands
 ├── services/
 │   └── waitlistService.ts   use cases: load, apply a rule, save only if nobody saved in between, retry on conflict
 ├── storage/
@@ -24,7 +24,7 @@ src/                         what runs on the server
 │   └── waitlistHandlers.ts  what each URL does: reads the cookie and the form, asks the service, picks the page or redirect
 ├── views/
 │   ├── waitlistPage.tsx     the one / page: the join form, or the party's card
-│   ├── partyCard.tsx        the party's current state: name, size, parties ahead or the time to check in by, its link to copy
+│   ├── partyCard.tsx        the party's current state: name, size, parties ahead or the Check-in button, its link to copy
 │   ├── errorPage.tsx        the friendly page when something goes wrong
 │   ├── browserFiles.ts      reads the browser/ files once at startup, for the pages to inline
 │   ├── layout.tsx           the HTML shell every page shares; inlines TableKit's classless stylesheet and browser/page.css
@@ -48,8 +48,6 @@ docker compose up --build
 ```
 
 Then open http://localhost:3000 to join the waitlist. From a phone on the same Wi-Fi, use your computer's IP address instead of `localhost`.
-
-Check-in deadlines are shown in the restaurant's time zone, `Asia/Tokyo` unless you set another: `RESTAURANT_TIME_ZONE=Europe/London docker compose up`.
 
 If port 27017 is already in use, run `MONGO_PORT=27018 docker compose up`.
 

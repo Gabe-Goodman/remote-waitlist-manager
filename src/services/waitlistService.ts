@@ -142,12 +142,9 @@ async function findParty(
 }
 
 /** How many parties are waiting: what a newcomer would have ahead of them. */
-async function waitingCount(
-  store: WaitlistStore,
-  env: Environment,
-): Promise<number> {
+async function waitingCount(store: WaitlistStore): Promise<number> {
   const { waitlist } = await store.load();
-  return partiesWaiting(waitlist, env.now());
+  return partiesWaiting(waitlist);
 }
 
 /**
@@ -160,7 +157,7 @@ export function waitlistService(store: WaitlistStore, env: Environment) {
     checkIn: (partyToken: string) => checkInAndSave(store, env, partyToken),
     leave: (partyToken: string) => leaveAndSave(store, env, partyToken),
     find: (partyToken: string) => findParty(store, env, partyToken),
-    waitingCount: () => waitingCount(store, env),
+    waitingCount: () => waitingCount(store),
     // A fresh join form's key: an unguessable token, like a party's.
     newJoinKey: () => env.newToken(),
     // Loading the waitlist proves MongoDB answers and the waitlist exists.
