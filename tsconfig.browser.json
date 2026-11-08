@@ -1,0 +1,14 @@
+{
+  // Type-checks the scripts in browser/ as the browser runs them: plain
+  // JavaScript, checked against the DOM's types. `npm run typecheck` runs it.
+  "compilerOptions": {
+    "target": "es2023",
+    "lib": ["es2023", "dom"],
+    "allowJs": true,
+    "checkJs": true,
+    "strict": true,
+    "noEmit": true,
+    "types": []
+  },
+  "include": ["browser"]
+}

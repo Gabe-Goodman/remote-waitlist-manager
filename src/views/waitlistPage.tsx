@@ -10,8 +10,7 @@ import {
   type Party,
   type PartyState,
 } from "../domain/waitlist.js";
-import { copyScript } from "./copyScript.js";
-import { updateScript } from "./updateScript.js";
+import { copyLinkJs, liveCardJs } from "./browserFiles.js";
 import { Layout } from "./layout.js";
 import {
   cardTitles,
@@ -59,7 +58,7 @@ export function WaitlistPage(props: WaitlistPageProps) {
     return (
       <Layout
         title={cardTitles[props.state.kind]}
-        script={`${copyScript}\n${updateScript}`}
+        script={`${copyLinkJs}\n${liveCardJs}`}
       >
         {/* role="status", not "alert": this informs, it isn't an error. */}
         {props.notice && (

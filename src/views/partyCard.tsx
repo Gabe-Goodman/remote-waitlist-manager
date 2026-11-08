@@ -29,8 +29,12 @@ export function PartyCard({
   const inQueue = state.kind === "waiting" || state.kind === "ready";
   return (
     // data-state lets the live update tell the states apart without
-    // reading the wording.
-    <section className="card" data-state={state.kind}>
+    // reading the wording; data-title gives it the tab's title.
+    <section
+      className="card"
+      data-state={state.kind}
+      data-title={cardTitles[state.kind]}
+    >
       <h1>{cardTitles[state.kind]}</h1>
       {/* Where you stand comes first and largest: it's what a diner looks
           for every time they glance at their phone. */}
@@ -153,7 +157,12 @@ function ShareLink({ link }: { link: string }) {
           <CopyIcon />
           <CheckIcon />
         </button>
-        <span role="status" id="copy-status" className="visually-hidden" />
+        <span
+          role="status"
+          id="copy-status"
+          className="visually-hidden"
+          data-copied-text={messages.copiedLink}
+        />
       </div>
       <p id="party-link-hint" className="secondary">
         {messages.partyLinkHint}
