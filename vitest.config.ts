@@ -5,5 +5,7 @@ import { defineConfig } from "vitest/config";
 export default defineConfig({
   test: {
     include: ["src/**/*.test.{ts,tsx}"],
+    // The pages link the built browser script, so it's built once first.
+    globalSetup: "vitest.globalSetup.ts",
   },
 });

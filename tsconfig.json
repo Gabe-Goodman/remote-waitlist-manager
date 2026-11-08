@@ -15,5 +15,5 @@
     "noEmit": true,
     "types": ["node"]
   },
-  "include": ["src", "e2e", "*.config.ts"]
+  "include": ["src", "browser", "e2e", "*.config.ts", "vitest.globalSetup.ts"]
 }

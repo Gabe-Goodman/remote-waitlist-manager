@@ -45,12 +45,12 @@ The whole waitlist is **one MongoDB document**, `{ _id: "main", version, parties
 
 Every change is **read, apply a rule, save only if nobody saved in between**: `replaceOne({ _id: "main", version }, { version: version + 1, parties })`. MongoDB writes one document atomically, so if two diners save at once, one save wins and the other finds the version moved on, reads the waitlist again, reruns the rule on the fresh line and saves too, up to 10 tries (then "busy, please tap Join again"). That one check prevents lost updates, duplicates and overbooking. Why one document, its limits (16 MB, read size) and what I'd do in production are in [DECISIONS.md](DECISIONS.md).
 
-### Pages: server-rendered, with two islands
-Pattern: **Islands.** Every page is rendered on the server with React (`renderToString`), works without JavaScript, and is fast on a slow phone (TableKit's stylesheet and the page's scripts are inlined, so there's one request). Two small dependency-free scripts add interactivity:
-- **the live card** (`browser/liveCard.js`) fetches the party's card every 2 seconds, one request at a time, and swaps it in when it changed; it refreshes at once when the phone is unlocked, and sets the tab title and vibrates when the table is ready;
-- **the Copy button** (`browser/copyLink.js`) copies the party's link.
+### Pages: server-rendered, with one React island
+Pattern: **Islands.** Every page is rendered on the server with React (`renderToString`), works without JavaScript, and is fast on a slow phone (TableKit's stylesheet and the page's CSS are inlined). On the party page, the card is an island: a script built by Vite (`browser/islands.tsx`) takes over the server-rendered card with React's `hydrateRoot`, from the same `PartyCard` component and the same data, so the browser's first render matches the server's. It adds:
+- **the live card** (`browser/liveCard.tsx`): polls the card's data (`/party/:token/card.json`) with TanStack Query every 2 seconds, one request at a time, and React updates only what changed (an open "Leave the waitlist" stays open); it refreshes at once when the phone is unlocked, stops once the visit is over, and sets the tab title and vibrates when the table is ready;
+- **the Copy button**: copies the party's link; shown only once the island has taken over, since without JavaScript it would do nothing.
 
-No React runs in the browser: the live card swaps in HTML the server rendered, so there is one renderer and nothing to hydrate.
+The card's data travels in a `data-card` attribute on the page and as JSON from `card.json`: only what the card shows (name, size, token, state), never the email. The script is served at `/assets/islands.js?v=<content hash>` and kept by the browser for a year (a new build gets a new address). It weighs about 80 KB gzipped, mostly React and TanStack Query; the join form loads no script at all.
 
 ### URLs
 
@@ -59,18 +59,19 @@ No React runs in the browser: the live card swaps in HTML the server rendered, s
 | GET | `/` | The join form; a browser that has a party goes to its page. `?rejoin=<token>`: the form filled in from a party whose visit is over. |
 | POST | `/parties` | Join (the form). On success, to the party's page. |
 | GET | `/party/:token` | The party's own page: its state, its link, Check in and Leave. The address bar is the link to share. |
-| GET | `/party/:token/card` | The card alone, for the live update. |
+| GET | `/party/:token/card.json` | The card's data, for the live card. |
 | POST | `/party/:token/check-in` | Check the party in, if its table is ready. |
 | POST | `/party/:token/leave` | Take the party off the waitlist. |
+| GET | `/assets/islands.js` | The party page's script, built by Vite. |
 | GET | `/health` | 200 once MongoDB answers. |
 
 ### Code
 
 ```
-browser/                     what runs in the diner's browser, inlined into the page
-├── page.css                 the page's own CSS, on top of TableKit's classless stylesheet
-├── copyLink.js              the Copy button
-└── liveCard.js              keeps the card up to date
+browser/                     what runs or applies in the diner's browser
+├── page.css                 the page's own CSS, on top of TableKit's classless stylesheet (inlined)
+├── islands.tsx              the party page's script: hydrates the card (built by Vite into dist/browser/)
+└── liveCard.tsx             keeps the card up to date
 src/                         what runs on the server
 ├── domain/waitlist.ts       the rules: pure functions of (waitlist, now); no database, clock or HTTP
 ├── services/                use cases: load → rule → save if unchanged → retry on conflict
@@ -112,13 +113,13 @@ npm run dev    # starts MongoDB in Docker, then the app on port 3000, reloading 
 
 | Command | What it does |
 |---|---|
-| `npm run dev` | MongoDB in Docker, then the app with reload on changes |
-| `npm test` | MongoDB in Docker, then all Vitest tests (unit and integration) |
+| `npm run dev` | MongoDB in Docker, then the app and its browser script, rebuilt on changes |
+| `npm test` | MongoDB in Docker, then all Vitest tests (unit and integration), after building the browser script the pages link |
 | `npm run test:e2e` | builds and starts the app in Docker, then the Playwright journeys |
 | `npm run typecheck` | TypeScript, for the server code and the browser scripts |
 | `npm run lint` | ESLint, with type-checked rules |
 | `npm run format` | Prettier |
-| `npm run build` / `npm start` | compile to `dist/` / run the compiled app |
+| `npm run build` / `npm start` | compile the server to `dist/` and build the browser script into `dist/browser/` / run the compiled app |
 
 ### Configuration
 

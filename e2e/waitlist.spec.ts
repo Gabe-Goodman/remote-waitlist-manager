@@ -51,8 +51,8 @@ test("joins the waitlist, lands on the party's page and stays there after a relo
       /^(You're next\. Stay close and keep this page open\.|\d+ part(y|ies) ahead of you\.|Check in now\.)$/,
     ),
   ).toBeVisible();
-  // Without JavaScript the Copy button would do nothing, so it stays hidden.
-  await expect(page.locator("#copy-link")).toBeHidden();
+  // Without JavaScript the Copy button would do nothing, so there is none.
+  await expect(page.getByRole("button", { name: "Copy link" })).toHaveCount(0);
 
   await page.reload();
 

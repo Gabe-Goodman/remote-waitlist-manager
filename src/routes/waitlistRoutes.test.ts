@@ -487,27 +487,17 @@ describe("the party's link", () => {
     expect(joinForm).not.toContain("/party/");
   });
 
-  test("shows the Copy button only when the page's script runs, and keeps scripts out of the card", async () => {
+  test("leaves the Copy button to the page's script, since without JavaScript it would do nothing", async () => {
     const app = await routes();
     const anasCookie = partyCookie(await postJoin(app, ana));
 
     const page = await partyPageHtml(app, anasCookie);
-    const card = await (await getCard(app, anasCookie)).text();
-    const joinForm = await (await app.request("/")).text();
 
-    const head = /<head>[\s\S]*<\/head>/.exec(page)?.[0] ?? "";
-    const copyLinkJs = readFileSync("browser/copyLink.js", "utf8");
-    expect(head.includes(copyLinkJs)).toBe(true);
-    expect(card).toMatch(
-      /<button type="button" id="copy-link" class="custom" aria-label="Copy link"><svg aria-hidden="true"/,
+    expect(page).toContain('<div class="copy-field"><input id="party-link"');
+    expect(page).not.toContain('aria-label="Copy link"');
+    expect(page).toContain(
+      '<span role="status" class="visually-hidden"></span>',
     );
-    // The wording lives in messages.ts and reaches the script through the
-    // page, so the script itself holds no text a diner reads.
-    expect(card).toContain(
-      '<span role="status" id="copy-status" class="visually-hidden" data-copied-text="Link copied"></span>',
-    );
-    expect(card).not.toContain("<script");
-    expect(joinForm).not.toContain("<script");
   });
 });
 
@@ -894,31 +884,39 @@ describe("leaving", () => {
   });
 });
 
-/** The party's card on its own, the way the card's live updates fetch it. */
-function getCard(app: Hono, cookie: string) {
-  return app.request(`${partyPath(cookie)}/card`);
+/** The card's data, the way the live card fetches it. */
+function getCardData(app: Hono, cookie: string) {
+  return app.request(`${partyPath(cookie)}/card.json`);
 }
 
-describe("the card on its own", () => {
-  test("sends just the party's card, the same one the page shows", async () => {
-    const app = await routes();
-    const anasCookie = partyCookie(await postJoin(app, ana));
+/** The value of an attribute in rendered HTML, with React's escapes undone. */
+function attribute(html: string, name: string): string | undefined {
+  const value = new RegExp(`${name}="([^"]*)"`).exec(html)?.[1];
+  return value
+    ?.replaceAll("&quot;", '"')
+    .replaceAll("&#x27;", "'")
+    .replaceAll("&lt;", "<")
+    .replaceAll("&gt;", ">")
+    .replaceAll("&amp;", "&");
+}
 
-    const response = await getCard(app, anasCookie);
-    const card = await response.text();
+describe("the live card", () => {
+  test("sends the card's data as JSON: what the card shows, never the email or join key", async () => {
+    const app = await routes();
+    const anasCookie = partyCookie(
+      await postJoin(app, { ...ana, joinKey: "key-1" }),
+    );
+    const token = anasCookie.replace("partyToken=", "");
+
+    const response = await getCardData(app, anasCookie);
 
     expect(response.status).toBe(200);
-    expect(response.headers.get("Content-Type")).toContain("text/html");
-    expect(card).not.toMatch(/^<!DOCTYPE/i);
-    expect(card).not.toContain("<html");
-    expect(card).not.toContain("<style");
-    expect(card).toMatch(
-      /^<section class="card" data-state="ready" data-title="Your table is ready!">[\s\S]*<\/section>$/,
-    );
-    const page = await partyPageHtml(app, anasCookie);
-    expect(page.match(/<section class="card"[\s\S]*?<\/section>/)?.[0]).toBe(
-      card,
-    );
+    expect(response.headers.get("Content-Type")).toContain("application/json");
+    expect(await response.json()).toEqual({
+      party: { token, name: "Ana", size: 2 },
+      state: { kind: "ready" },
+      origin: "http://localhost",
+    });
   });
 
   test("follows the party's state", async () => {
@@ -926,44 +924,93 @@ describe("the card on its own", () => {
     const anasCookie = partyCookie(await postJoin(app, ana));
     await postCheckIn(app, anasCookie);
 
-    const card = await (await getCard(app, anasCookie)).text();
+    const response = await getCardData(app, anasCookie);
 
-    expect(card).toContain("You&#x27;re checked in.");
-    // The card carries its own title, so the live update can set the tab's.
-    expect(card).toMatch(
-      /^<section class="card" data-state="in-service" data-title="You&#x27;re checked in.">/,
-    );
+    expect(await response.json()).toMatchObject({
+      state: { kind: "in-service" },
+    });
   });
 
-  test("keeps the card up to date only on the card page", async () => {
-    const app = await routes();
-    const anasCookie = partyCookie(await postJoin(app, ana));
-
-    const page = await partyPageHtml(app, anasCookie);
-    const card = await (await getCard(app, anasCookie)).text();
-    const joinForm = await (await app.request("/")).text();
-
-    const head = /<head>[\s\S]*<\/head>/.exec(page)?.[0] ?? "";
-    const liveCardJs = readFileSync("browser/liveCard.js", "utf8");
-    expect(head.includes(liveCardJs)).toBe(true);
-    expect(card).not.toContain("<script");
-    expect(joinForm).not.toContain("<script");
-  });
-
-  test("sends nothing for a party that isn't on the waitlist", async () => {
-    const response = await getCard(await routes(), "partyToken=nobody");
+  test("sends no card data for a party that isn't on the waitlist", async () => {
+    const response = await getCardData(await routes(), "partyToken=nobody");
 
     expect(response.status).toBe(204);
     expect(await response.text()).toBe("");
   });
 
-  test("tells browsers not to keep the card", async () => {
+  test("tells browsers not to keep the card's data", async () => {
     const app = await routes();
     const anasCookie = partyCookie(await postJoin(app, ana));
 
-    const response = await getCard(app, anasCookie);
+    const response = await getCardData(app, anasCookie);
 
     expect(response.headers.get("Cache-Control")).toBe("no-store");
+  });
+
+  test("puts the card's data on the page, so the script starts from the card the page shows", async () => {
+    const app = await routes();
+    const anasCookie = partyCookie(await postJoin(app, ana));
+
+    const page = await partyPageHtml(app, anasCookie);
+    const data = await (await getCardData(app, anasCookie)).text();
+
+    const wrapper = /<div id="party-card" data-card="[^"]*">/.exec(page)?.[0];
+    expect(wrapper).toBeDefined();
+    expect(JSON.parse(attribute(wrapper ?? "", "data-card") ?? "")).toEqual(
+      JSON.parse(data),
+    );
+    expect(page).toMatch(
+      /<div id="party-card" data-card="[^"]*"><section class="card" data-state="ready"/,
+    );
+    expect(page).not.toContain("ana@example.com");
+  });
+
+  test("keeps a name that looks like markup inside the card's data", async () => {
+    const app = await routes();
+    const name = '"></div><script>alert(1)</script>';
+    const cookie = partyCookie(
+      await postJoin(app, { ...ana, name, email: "mallory@example.com" }),
+    );
+
+    const page = await partyPageHtml(app, cookie);
+
+    expect(page).not.toContain("<script>alert(1)");
+    const wrapper = /<div id="party-card" data-card="[^"]*">/.exec(page)?.[0];
+    expect(
+      JSON.parse(attribute(wrapper ?? "", "data-card") ?? "{}"),
+    ).toMatchObject({ party: { name } });
+  });
+
+  test("loads the page's script on the party page only, from an address that names its version", async () => {
+    const app = await routes();
+    const anasCookie = partyCookie(await postJoin(app, ana));
+
+    const page = await partyPageHtml(app, anasCookie);
+    const joinForm = await (await app.request("/")).text();
+
+    expect(page).toMatch(
+      /<head>[\s\S]*<script type="module" src="\/assets\/islands\.js\?v=[0-9a-f]{12}"><\/script>[\s\S]*<\/head>/,
+    );
+    expect(page.match(/<script/g)).toHaveLength(1);
+    expect(joinForm).not.toContain("<script");
+  });
+
+  test("serves the page's script to be kept for a year, since a new version gets a new address", async () => {
+    const app = await routes();
+    const anasCookie = partyCookie(await postJoin(app, ana));
+    const page = await partyPageHtml(app, anasCookie);
+    const src = attribute(/<script [^>]*>/.exec(page)?.[0] ?? "", "src") ?? "";
+
+    const response = await app.request(src);
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get("Content-Type")).toContain("text/javascript");
+    expect(response.headers.get("Cache-Control")).toBe(
+      "public, max-age=31536000, immutable",
+    );
+    expect(await response.text()).toBe(
+      readFileSync("dist/browser/islands.js", "utf8"),
+    );
   });
 });
 

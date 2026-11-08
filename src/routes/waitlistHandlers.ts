@@ -9,7 +9,8 @@ import type { BlankEnv } from "hono/types";
 import type { JoinForm, PartyState } from "../domain/waitlist.js";
 import type { WaitlistService } from "../services/waitlistService.js";
 import { errorPage } from "../views/errorPage.js";
-import { cardFragment } from "../views/partyCard.js";
+import { islandsJs } from "../views/browserFiles.js";
+import { cardData } from "../views/partyCard.js";
 import { joinPage, partyPage } from "../views/waitlistPage.js";
 
 // The cookie that keeps this browser's party: its value is the party's token.
@@ -19,7 +20,8 @@ export function waitlistHandlers(waitlist: WaitlistService) {
   return {
     showHomePage,
     showPartyPage,
-    showPartyCard,
+    showPartyCardData,
+    showIslandsScript,
     joinFromForm,
     checkInFromCard,
     leaveFromCard,
@@ -85,17 +87,26 @@ export function waitlistHandlers(waitlist: WaitlistService) {
     return c.html(partyPage({ party, state, origin: siteOrigin(c) }));
   }
 
-  // The party's card on its own, which the card's live updates fetch. The
-  // page and this route render the same component, so an update can't show
-  // a card the page wouldn't.
-  async function showPartyCard(
-    c: Context<BlankEnv, "/party/:partyToken/card">,
+  // The party's card as data, which the live card fetches: only what the
+  // card shows, so the browser never gets the email or join key. The page
+  // and the live card render the same component from it.
+  async function showPartyCardData(
+    c: Context<BlankEnv, "/party/:partyToken/card.json">,
   ) {
     const found = await waitlist.find(c.req.param("partyToken"));
     // No party any more: nothing to keep up to date.
     if (!found) return c.body(null, 204);
-    const { party, state } = found;
-    return c.html(cardFragment({ party, state, origin: siteOrigin(c) }));
+    return c.json(cardData(found.party, found.state, siteOrigin(c)));
+  }
+
+  // The page's script. Its address carries a hash of its content
+  // (islandsVersion), so a new version is a new address and browsers may
+  // keep this one for a year without asking again.
+  function showIslandsScript(c: Context) {
+    return c.body(islandsJs, 200, {
+      "Content-Type": "text/javascript; charset=utf-8",
+      "Cache-Control": "public, max-age=31536000, immutable",
+    });
   }
 
   // Whether this browser follows a party, other than `except`, that still

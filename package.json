@@ -9,6 +9,7 @@
   "dependencies": {
     "@hono/node-server": "^2.1.6",
     "@tablecheck/tablekit-css": "4.3.1",
+    "@tanstack/react-query": "^5.107.1",
     "hono": "^4.13.16",
     "mongodb": "^7.8.0",
     "react": "^19.3.1",
@@ -20,23 +21,25 @@
     "@types/node": "^22.20.5",
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
+    "@vitejs/plugin-react": "^6.2.1",
     "eslint": "^10.14.0",
     "prettier": "^3.9.10",
     "tsx": "^4.23.15",
     "typescript": "^6.0.3",
     "typescript-eslint": "^8.72.1",
+    "vite": "^8.3.6",
     "vitest": "^5.1.0"
   },
   "scripts": {
     "test": "vitest run",
-    "typecheck": "tsc && tsc -p tsconfig.browser.json",
+    "typecheck": "tsc",
     "lint": "eslint .",
     "format": "prettier --write .",
     "pretest": "docker compose up -d --wait mongo",
     "test:e2e": "playwright test",
-    "build": "tsc -p tsconfig.build.json",
+    "build": "tsc -p tsconfig.build.json && vite build",
     "start": "node dist/server.js",
     "predev": "docker compose up -d --wait mongo",
-    "dev": "tsx watch src/server.ts"
+    "dev": "vite build && (vite build --watch & tsx watch --include dist/browser/islands.js src/server.ts)"
   }
 }

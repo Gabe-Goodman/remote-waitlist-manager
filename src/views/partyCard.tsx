@@ -2,26 +2,34 @@
 // (with the Check-in button), checked in, or done or left (with a link to
 // join again); its name and size; while it still has a place, its
 // link, ready to copy; and, while it's still in the queue, a way to leave.
-// Renders only: the route passes in the state and the site's origin.
+// Renders only: the route passes in the state and the site's origin. The
+// server renders it into the page, and browser/liveCard.tsx renders it again
+// in the browser as the card changes.
+import { useEffect, useRef, useState } from "react";
 import type { Party, PartyState } from "../domain/waitlist.js";
-import { toFragment } from "./html.js";
 import { cardTitles, messages } from "./messages.js";
 
-type PartyCardProps = {
-  party: Party;
+// Everything the card shows, and nothing else: the browser gets this on the
+// page and as JSON for the live card, so the party's email and join key
+// never leave the server.
+export type CardData = {
+  party: Pick<Party, "token" | "name" | "size">;
   state: PartyState;
   origin: string;
 };
 
-// The card on its own, as HTML, for the live update: the same component the
-// page shows, so an update can't show a card the page wouldn't.
-export function cardFragment(props: PartyCardProps): string {
-  return toFragment(<PartyCard {...props} />);
+export function cardData(
+  party: Party,
+  state: PartyState,
+  origin: string,
+): CardData {
+  const { token, name, size } = party;
+  return { party: { token, name, size }, state, origin };
 }
 
 // origin: the site's address as the diner reached it, so the link works
 // when opened on another phone.
-export function PartyCard({ party, state, origin }: PartyCardProps) {
+export function PartyCard({ party, state, origin }: CardData) {
   const placeGone = state.kind === "done" || state.kind === "left";
   const inQueue = state.kind === "waiting" || state.kind === "ready";
   return (
@@ -108,37 +116,66 @@ function ShareLink({ link }: { link: string }) {
   return (
     <div className="share">
       <label htmlFor="party-link">{messages.partyLinkLabel}</label>
-      {/* The Copy button sits inside the field, so showing it moves
-          nothing. The stylesheet shows it only when the page's script runs:
-          without JavaScript it would do nothing. "custom" opts it out of
-          TableKit's filled button: it's an icon. */}
-      <div className="copy-field">
-        <input
-          id="party-link"
-          readOnly
-          value={link}
-          aria-describedby="party-link-hint"
-          data-stretch
-        />
-        <button
-          type="button"
-          id="copy-link"
-          className="custom"
-          aria-label={messages.copyLink}
-        >
-          <CopyIcon />
-          <CheckIcon />
-        </button>
-        <span
-          role="status"
-          id="copy-status"
-          className="visually-hidden"
-          data-copied-text={messages.copiedLink}
-        />
-      </div>
+      <CopyField link={link} />
       <p id="party-link-hint" className="secondary">
         {messages.partyLinkHint}
       </p>
+    </div>
+  );
+}
+
+// The link's field, with a Copy button inside it, so showing the button
+// moves nothing. The button appears only once the browser has taken over the
+// card: without JavaScript it would do nothing. The server and the browser's
+// first render both leave it out, so they match.
+function CopyField({ link }: { link: string }) {
+  const [interactive, setInteractive] = useState(false);
+  const [copied, setCopied] = useState(false);
+  const field = useRef<HTMLInputElement>(null);
+  useEffect(() => setInteractive(true), []);
+  // Long enough to notice at a glance, short enough to copy again.
+  useEffect(() => {
+    if (!copied) return;
+    const reset = setTimeout(() => setCopied(false), 2000);
+    return () => clearTimeout(reset);
+  }, [copied]);
+
+  async function copy() {
+    try {
+      await navigator.clipboard.writeText(link);
+    } catch {
+      // navigator.clipboard only exists on secure pages, so a phone reaching
+      // the app over plain HTTP on the local network copies the old way.
+      field.current?.select();
+      document.execCommand("copy");
+    }
+    setCopied(true);
+  }
+
+  return (
+    <div className="copy-field">
+      <input
+        ref={field}
+        id="party-link"
+        readOnly
+        value={link}
+        aria-describedby="party-link-hint"
+        data-stretch
+      />
+      {/* "custom" opts it out of TableKit's filled button: it's an icon. */}
+      {interactive && (
+        <button
+          type="button"
+          className="custom"
+          aria-label={messages.copyLink}
+          onClick={() => void copy()}
+        >
+          {copied ? <CheckIcon /> : <CopyIcon />}
+        </button>
+      )}
+      <span role="status" className="visually-hidden">
+        {copied ? messages.copiedLink : ""}
+      </span>
     </div>
   );
 }
@@ -149,7 +186,6 @@ function CopyIcon() {
   return (
     <svg
       aria-hidden="true"
-      className="icon-copy"
       width="18"
       height="18"
       viewBox="0 0 24 24"
@@ -169,7 +205,6 @@ function CheckIcon() {
   return (
     <svg
       aria-hidden="true"
-      className="icon-check"
       width="18"
       height="18"
       viewBox="0 0 24 24"

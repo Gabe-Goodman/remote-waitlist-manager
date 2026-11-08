@@ -82,14 +82,14 @@ select {
   font: var(--body-2);
   padding-inline: var(--spacing-l3);
 }
-/* The Copy icon sits inside the link's field at its right edge. Only under
-   the class the page's script sets is it shown and does the field make
-   room, so without JavaScript there is no icon and no empty gap. */
+/* The Copy icon sits inside the link's field at its right edge. The page's
+   script adds it, and only then does the field make room, so without
+   JavaScript there is no icon and no empty gap. */
 .copy-field {
   position: relative;
 }
 /* By id: TableKit's padding rule on inputs is more specific than a class. */
-.js .copy-field #party-link {
+.copy-field:has(button) #party-link {
   padding-right: 2.5rem;
 }
 /* A long link ends in "…" rather than a character cut in half. */
@@ -105,23 +105,13 @@ select {
   width: 2.5rem;
   height: 2.5rem;
   margin-top: 0;
-  display: none;
+  display: flex;
   align-items: center;
   justify-content: center;
   background: none;
   color: var(--text-subtle);
   cursor: pointer;
   border-radius: var(--border-radius-small);
-}
-.js .copy-field button {
-  display: flex;
-}
-.copy-field .icon-check,
-.copy-field[data-copied] .icon-copy {
-  display: none;
-}
-.copy-field[data-copied] .icon-check {
-  display: block;
 }
 /* TableKit leaves <summary> unstyled; here it reads as a quiet link, like
    the card's other text links, and its warning sits close beneath it. */

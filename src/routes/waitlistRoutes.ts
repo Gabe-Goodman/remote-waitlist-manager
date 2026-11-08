@@ -24,9 +24,12 @@ export function waitlistRoutes(waitlist: WaitlistService): Hono {
   // as the join form after joining. no-store makes the browser ask again.
   // GETs only: on a refused join's page, Chrome's back button would ask to
   // resubmit the form.
+  // A response that sets its own caching (the page's script) keeps it.
   routes.get("*", async (c, next) => {
     await next();
-    c.header("Cache-Control", "no-store");
+    if (!c.res.headers.has("Cache-Control")) {
+      c.header("Cache-Control", "no-store");
+    }
   });
 
   // Every URL the app answers. waitlistHandlers.ts says how.
@@ -35,7 +38,8 @@ export function waitlistRoutes(waitlist: WaitlistService): Hono {
   // is over.
   routes.get("/", handle.showHomePage);
   routes.get("/party/:partyToken", handle.showPartyPage);
-  routes.get("/party/:partyToken/card", handle.showPartyCard);
+  routes.get("/party/:partyToken/card.json", handle.showPartyCardData);
+  routes.get("/assets/islands.js", handle.showIslandsScript);
   routes.post("/parties", handle.joinFromForm);
   routes.post("/party/:partyToken/check-in", handle.checkInFromCard);
   routes.post("/party/:partyToken/leave", handle.leaveFromCard);

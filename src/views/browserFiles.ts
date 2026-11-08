@@ -1,13 +1,22 @@
-// The files in browser/, read once when the app starts and inlined into the
-// pages: one request is faster than two on a slow phone connection. Paths are
-// relative to the project folder, where the app always starts. Reads files
-// only: no rendering here.
+// What the pages send to the browser, read once when the app starts. Paths
+// are relative to the project folder, where the app always starts. Reads
+// files only: no rendering here.
+import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 
-function browserFile(name: string): string {
-  return readFileSync(`browser/${name}`, "utf8");
-}
+// Inlined into every page: one request is faster than two on a slow phone
+// connection, and the page is styled from its first paint.
+export const pageCss = readFileSync("browser/page.css", "utf8");
 
-export const pageCss = browserFile("page.css");
-export const copyLinkJs = browserFile("copyLink.js");
-export const liveCardJs = browserFile("liveCard.js");
+// The party page's script, built by Vite from browser/islands.tsx (`npm run
+// build`, or `vite build --watch` under `npm run dev`). Served at its own
+// address rather than inlined: it's the size of React, and a browser keeps it
+// between visits, where an inlined copy would come with every page.
+export const islandsJs = readFileSync("dist/browser/islands.js", "utf8");
+
+// Part of the script's address: a new build is a new address, so a browser
+// never runs an old copy it kept.
+export const islandsVersion = createHash("sha256")
+  .update(islandsJs)
+  .digest("hex")
+  .slice(0, 12);

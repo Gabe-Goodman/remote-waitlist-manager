@@ -1,10 +1,10 @@
 // The HTML shell every page shares: phone-sized and readable. A page may
-// pass a script for its <head>; only the card page does, for its Copy button
-// and its live update, and every page works without it.
+// ask for the islands script; only the party page does, for its Copy button
+// and its live card, and every page works without it.
 import { readFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import type { ReactNode } from "react";
-import { pageCss } from "./browserFiles.js";
+import { islandsVersion, pageCss } from "./browserFiles.js";
 
 // TableKit's classless stylesheet, inlined into every page rather than
 // linked: on a slow phone connection a linked stylesheet is a second request
@@ -19,11 +19,11 @@ const tablekitCss = readFileSync(
 
 export function Layout({
   title,
-  script,
+  islands = false,
   children,
 }: {
   title: string;
-  script?: string;
+  islands?: boolean;
   children: ReactNode;
 }) {
   return (
@@ -36,8 +36,14 @@ export function Layout({
             selectors are as specific as TableKit's. */}
         <style>{tablekitCss}</style>
         <style>{pageCss}</style>
-        {/* In the <head>, so it runs before the body is drawn. */}
-        {script && <script>{script}</script>}
+        {/* A module script waits for the page to be parsed, so it can sit
+            in the <head> and start downloading at once. */}
+        {islands && (
+          <script
+            type="module"
+            src={`/assets/islands.js?v=${islandsVersion}`}
+          />
+        )}
       </head>
       <body>
         <main>{children}</main>

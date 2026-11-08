@@ -10,7 +10,6 @@ import {
   type Party,
   type PartyState,
 } from "../domain/waitlist.js";
-import { copyLinkJs, liveCardJs } from "./browserFiles.js";
 import { toHtml } from "./html.js";
 import { Layout } from "./layout.js";
 import {
@@ -20,7 +19,7 @@ import {
   noticeMessages,
   type Notice,
 } from "./messages.js";
-import { PartyCard } from "./partyCard.js";
+import { cardData, PartyCard } from "./partyCard.js";
 
 // TableKit's alert colours: busy isn't the diner's mistake, so it's a
 // warning, not an error.
@@ -64,16 +63,16 @@ export function joinPage(props: JoinPageProps): string {
 
 function WaitlistPage(props: WaitlistPageProps) {
   if (props.party) {
+    const card = cardData(props.party, props.state, props.origin);
     return (
-      <Layout
-        title={cardTitles[props.state.kind]}
-        script={`${copyLinkJs}\n${liveCardJs}`}
-      >
-        <PartyCard
-          party={props.party}
-          state={props.state}
-          origin={props.origin}
-        />
+      <Layout title={cardTitles[card.state.kind]} islands>
+        {/* The islands script takes over the card from here: data-card is
+            the data it was rendered from, so the browser's first render
+            matches the server's. An attribute, which React escapes, rather
+            than a JSON <script>, which a name like "</script>" could end. */}
+        <div id="party-card" data-card={JSON.stringify(card)}>
+          <PartyCard {...card} />
+        </div>
       </Layout>
     );
   }
