@@ -7,6 +7,7 @@ import { deleteCookie, getCookie, setCookie } from "hono/cookie";
 import { HTTPException } from "hono/http-exception";
 import type { JoinForm } from "../domain/waitlist.js";
 import {
+  checkInParty,
   findParty,
   joinWaitlist,
   waitingCount,
@@ -42,10 +43,13 @@ export function waitlistRoutes(store: WaitlistStore, env: Environment): Hono {
 
   routes.get("/", async (c) => {
     const token = getCookie(c, "party");
-    const place = token ? await findParty(store, token) : undefined;
-    if (place) {
+    const found = token ? await findParty(store, env, token) : undefined;
+    if (found) {
+      const { party, state } = found;
       return c.html(
-        toHtml(<WaitlistPage place={place} origin={siteOrigin(c)} />),
+        toHtml(
+          <WaitlistPage party={party} state={state} origin={siteOrigin(c)} />,
+        ),
       );
     }
     // A cookie for a party that isn't on the waitlist is dead: clear it, so
@@ -59,9 +63,13 @@ export function waitlistRoutes(store: WaitlistStore, env: Environment): Hono {
     // One active party per browser. A stale form (back button, old tab) must
     // neither change the party's details nor add a second place in the
     // queue; someone joining for another group uses another phone. The
-    // diner goes back to their card, which shows the party they hold.
+    // diner goes back to their card, which shows the party they hold. A
+    // party whose meal is over holds nothing, so its browser may join again.
     const own = getCookie(c, "party");
-    if (own && (await findParty(store, own))) return c.redirect("/", 303);
+    const ownParty = own ? await findParty(store, env, own) : undefined;
+    if (ownParty && ownParty.state.kind !== "done") {
+      return c.redirect("/", 303);
+    }
     const form = await readJoinForm(c.req.parseBody());
     const outcome = await joinWaitlist(store, env, form);
     if (outcome.ok) {
@@ -93,32 +101,44 @@ export function waitlistRoutes(store: WaitlistStore, env: Environment): Hono {
     );
   });
 
+  // Success or refusal, the answer is the same: the card at / shows the
+  // party's real state (checked in, still waiting, or the join form for an
+  // unknown party), so no separate notice is needed. 303, like joining, so a
+  // reload never posts the check-in again.
+  routes.post("/check-in", async (c) => {
+    const token = getCookie(c, "party");
+    if (token) await checkInParty(store, env, token);
+    return c.redirect("/", 303);
+  });
+
   // The token is 128 random bits, so the link is the key to the party:
   // whoever has it can act for the party, which is how a group shares one.
   // It never replaces this browser's own party: opening a friend's link
-  // mustn't lose your own place. Instead of quietly redirecting, the diner
+  // mustn't lose your own place. A party whose meal is over has no place to
+  // lose, so a link may replace it. Instead of quietly redirecting, the diner
   // who tapped the link is told why they see their own party, not the one
   // they opened. The page is answered at the link's URL, so no flag or
   // extra cookie carries the notice, and a reload repeats a harmless GET.
   routes.get("/party/:token", async (c) => {
     const own = getCookie(c, "party");
     const token = c.req.param("token");
-    const ownPlace =
+    const ownParty =
       own !== undefined && own !== token
-        ? await findParty(store, own)
+        ? await findParty(store, env, own)
         : undefined;
-    if (ownPlace) {
+    if (ownParty && ownParty.state.kind !== "done") {
       return c.html(
         toHtml(
           <WaitlistPage
-            place={ownPlace}
+            party={ownParty.party}
+            state={ownParty.state}
             origin={siteOrigin(c)}
             notice="other-party"
           />,
         ),
       );
     }
-    if (await findParty(store, token)) rememberParty(c, token);
+    if (await findParty(store, env, token)) rememberParty(c, token);
     return c.redirect("/", 303);
   });
 

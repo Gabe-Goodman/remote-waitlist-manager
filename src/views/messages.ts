@@ -4,6 +4,7 @@ import {
   maxEmailLength,
   maxNameLength,
   type FieldErrors,
+  type PartyState,
 } from "../domain/waitlist.js";
 
 export const messages = {
@@ -21,17 +22,19 @@ export const messages = {
       : count === 1
         ? "1 party is waiting."
         : `${count} parties are waiting.`,
-  onWaitlistTitle: "You're on the waitlist",
   partyLine: (name: string, size: number) => `${name}, party of ${size}`,
   ahead: (count: number) =>
     count === 0
-      ? "No parties ahead of you."
+      ? "You're next. Stay close and keep this page open."
       : count === 1
         ? "1 party ahead of you."
         : `${count} parties ahead of you.`,
+  checkInNow: "Check in now.",
+  checkInButton: "Check in",
+  enjoyMeal: "Enjoy your meal.",
   partyLinkLabel: "Your party's link",
   partyLinkHint:
-    "Share it with the rest of your party, or open it on another device. Anyone with this link can see your place on the waitlist.",
+    "Share it with the rest of your party, or open it on another device. Anyone with this link can see your place on the waitlist and check in for you.",
   copyLink: "Copy link",
   copiedLink: "Link copied",
   otherPartyLink:
@@ -39,6 +42,14 @@ export const messages = {
   errorTitle: "Something went wrong",
   tryAgain: "Try again",
 } as const;
+
+/** The card's heading, which is also the page's title, for each state. */
+export const cardTitles: Record<PartyState["kind"], string> = {
+  waiting: "You're on the waitlist",
+  ready: "Your table is ready!",
+  "in-service": "You're checked in.",
+  done: "Thanks for dining with us.",
+};
 
 /** Form-level notices, shown in the box at the top of the form. */
 export type Notice = "fix-fields" | "duplicate" | "busy";

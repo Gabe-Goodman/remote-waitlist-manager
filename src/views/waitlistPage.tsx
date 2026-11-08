@@ -1,16 +1,18 @@
-// The one `/` page: the party's card when this browser has a party on the
-// waitlist; otherwise the join form, with what the diner typed and any
-// errors when a join was refused.
+// The one `/` page: the party's card, in whatever state the party is in,
+// when this browser has a party on the waitlist; otherwise the join form,
+// with what the diner typed and any errors when a join was refused.
 import {
   maxEmailLength,
   maxNameLength,
   maxPartySize,
   type FieldErrors,
   type JoinForm,
-  type PartyPlace,
+  type Party,
+  type PartyState,
 } from "../domain/waitlist.js";
 import { Layout } from "./layout.js";
 import {
+  cardTitles,
   fieldErrorMessages,
   messages,
   noticeMessages,
@@ -40,13 +42,18 @@ const noValues: JoinForm = { name: "", email: "", size: "" };
 // Either the party's card, or the join form with the waiting count: the
 // form can't be shown without the count.
 type WaitlistPageProps =
-  | { place: PartyPlace; origin: string; notice?: "other-party" }
-  | { place?: undefined; waiting: number; refused?: RefusedJoin };
+  | {
+      party: Party;
+      state: PartyState;
+      origin: string;
+      notice?: "other-party";
+    }
+  | { party?: undefined; waiting: number; refused?: RefusedJoin };
 
 export function WaitlistPage(props: WaitlistPageProps) {
-  if (props.place) {
+  if (props.party) {
     return (
-      <Layout title={messages.onWaitlistTitle}>
+      <Layout title={cardTitles[props.state.kind]}>
         {/* role="status", not "alert": this informs, it isn't an error. */}
         {props.notice && (
           <div
@@ -58,7 +65,11 @@ export function WaitlistPage(props: WaitlistPageProps) {
             {messages.otherPartyLink}
           </div>
         )}
-        <PartyCard place={props.place} origin={props.origin} />
+        <PartyCard
+          party={props.party}
+          state={props.state}
+          origin={props.origin}
+        />
       </Layout>
     );
   }

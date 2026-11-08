@@ -23,8 +23,9 @@ services:
     ports:
       - "3000:3000"
     environment:
-      # Inside Compose, MongoDB is reached by its service name.
-      MONGO_URL: mongodb://mongo:27017/waitlist
+      # Inside Compose, MongoDB is reached by its service name. MONGO_DB lets
+      # the e2e tests run against an empty database of their own.
+      MONGO_URL: mongodb://mongo:27017/${MONGO_DB:-waitlist}
     depends_on:
       mongo:
         # Wait until MongoDB answers a ping, not just until it starts.

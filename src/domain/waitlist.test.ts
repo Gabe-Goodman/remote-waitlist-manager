@@ -1,6 +1,7 @@
 // The waitlist's rules as unit tests: plain values in and out, no database.
 import { describe, expect, test } from "vitest";
 import {
+  checkIn,
   isDone,
   isInService,
   join,
@@ -169,6 +170,25 @@ describe("never on the list twice", () => {
       { ...valid, email: "  ANA@Example.com " },
       context,
     );
+
+    expect(result).toEqual({ ok: false, reason: "duplicate" });
+  });
+
+  test("lets the email of a party that has finished join again", () => {
+    const finished = partyNamed("Ana", {
+      size: 2,
+      checkedInAt: new Date("2026-11-07T17:55:00Z"),
+    });
+
+    const result = join({ parties: [finished] }, valid, context);
+
+    expect(result.ok).toBe(true);
+  });
+
+  test("still refuses the email of a party that is in service", () => {
+    const seated = partyNamed("Ana", { size: 2, checkedInAt: context.now });
+
+    const result = join({ parties: [seated] }, valid, context);
 
     expect(result).toEqual({ ok: false, reason: "duplicate" });
   });
@@ -410,5 +430,85 @@ describe("where a party stands", () => {
     const waitlist = { parties: [partyNamed("Ana")] };
 
     expect(partyState(waitlist, "token-nobody", now)).toBeUndefined();
+  });
+});
+
+describe("checking in", () => {
+  const now = new Date("2026-11-07T18:00:00Z");
+  const secondsFromNow = (seconds: number) =>
+    new Date(now.getTime() + seconds * 1000);
+
+  test("checks in a party whose table is ready", () => {
+    const waitlist = {
+      parties: [partyNamed("Ana", { size: 4 }), partyNamed("Ben", { size: 3 })],
+    };
+
+    const result = checkIn(waitlist, "token-Ben", now);
+
+    if (!result.ok) throw new Error(`check-in refused: ${result.reason}`);
+    expect(result.party.name).toBe("Ben");
+    expect(result.party.checkedInAt).toEqual(now);
+    expect(result.waitlist.parties.map((p) => p.name)).toEqual(["Ana", "Ben"]);
+    expect(result.waitlist.parties[1]?.checkedInAt).toEqual(now);
+  });
+
+  test("refuses a party that isn't ready yet", () => {
+    const waitlist = {
+      parties: [partyNamed("Ana", { size: 8 }), partyNamed("Ben", { size: 3 })],
+    };
+
+    expect(checkIn(waitlist, "token-Ben", now)).toEqual({
+      ok: false,
+      reason: "not-ready",
+    });
+  });
+
+  test("refuses a party that has already checked in", () => {
+    const waitlist = {
+      parties: [partyNamed("Ana", { size: 4, checkedInAt: now })],
+    };
+
+    for (const at of [secondsFromNow(1), secondsFromNow(12)]) {
+      expect(checkIn(waitlist, "token-Ana", at)).toEqual({
+        ok: false,
+        reason: "already-checked-in",
+      });
+    }
+  });
+
+  test("refuses a token that isn't on the waitlist", () => {
+    const waitlist = { parties: [partyNamed("Ana")] };
+
+    expect(checkIn(waitlist, "token-nobody", now)).toEqual({
+      ok: false,
+      reason: "not-found",
+    });
+  });
+
+  test("never changes the waitlist it is given", () => {
+    const waitlist = { parties: [partyNamed("Ana"), partyNamed("Ben")] };
+
+    checkIn(waitlist, "token-Ana", now);
+
+    expect(waitlist.parties.map((p) => p.checkedInAt)).toEqual([
+      undefined,
+      undefined,
+    ]);
+  });
+
+  test("holds the seats it checked in with until its service ends", () => {
+    const waitlist = {
+      parties: [partyNamed("Ana", { size: 6 }), partyNamed("Ben", { size: 5 })],
+    };
+
+    const result = checkIn(waitlist, "token-Ana", now);
+
+    if (!result.ok) throw new Error(`check-in refused: ${result.reason}`);
+    expect(
+      partyState(result.waitlist, "token-Ben", secondsFromNow(17.999)),
+    ).toEqual({ kind: "waiting", ahead: 0 });
+    expect(
+      partyState(result.waitlist, "token-Ben", secondsFromNow(18)),
+    ).toEqual({ kind: "ready" });
   });
 });

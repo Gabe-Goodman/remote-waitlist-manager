@@ -81,7 +81,7 @@ export type JoinResult =
 
 /**
  * Validates the form and adds the party at the back of the queue, unless
- * its email is already on the waitlist.
+ * an active party already has its email.
  */
 export function join(
   waitlist: Waitlist,
@@ -93,10 +93,13 @@ export function join(
     return { ok: false, reason: "invalid", errors: validation.errors };
   }
 
-  // A party must never appear twice. Every party on the waitlist counts:
-  // no party can leave or finish.
+  // A party must never appear twice while it holds a place. A party that
+  // has finished its meal no longer counts, so the same diner can come back.
   const { email } = validation.details;
-  if (waitlist.parties.some((party) => party.email === email)) {
+  const taken = waitlist.parties.some(
+    (party) => party.email === email && isActive(party, context.now),
+  );
+  if (taken) {
     return { ok: false, reason: "duplicate" };
   }
 
@@ -159,6 +162,11 @@ export function isDone(party: Party, now: Date): boolean {
   return endsAt !== undefined && now >= endsAt;
 }
 
+// A finished party no longer holds a place, so its email can join again.
+export function isActive(party: Party, now: Date): boolean {
+  return !isDone(party, now);
+}
+
 function totalSize(parties: readonly Party[]): number {
   return parties.reduce((sum, party) => sum + party.size, 0);
 }
@@ -214,4 +222,31 @@ export function partyState(
   const ready = readyParties(waitlist, now);
   if (ready.some((r) => r.token === token)) return { kind: "ready" };
   return { kind: "waiting", ahead };
+}
+
+export type CheckInResult =
+  | { ok: true; waitlist: Waitlist; party: Party }
+  | { ok: false; reason: "not-found" | "not-ready" | "already-checked-in" };
+
+/**
+ * Checks the party in, only if its table is ready right now. A ready party
+ * holds its seats, so checking it in can never overbook. The service reruns
+ * this inside the versioned write, so a check-in decided on an old snapshot
+ * is checked again against the latest one.
+ */
+export function checkIn(
+  waitlist: Waitlist,
+  token: string,
+  now: Date,
+): CheckInResult {
+  const party = waitlist.parties.find((p) => p.token === token);
+  if (!party) return { ok: false, reason: "not-found" };
+  if (party.checkedInAt) return { ok: false, reason: "already-checked-in" };
+  if (partyState(waitlist, token, now)?.kind !== "ready") {
+    return { ok: false, reason: "not-ready" };
+  }
+
+  const checkedIn: Party = { ...party, checkedInAt: now };
+  const parties = waitlist.parties.map((p) => (p === party ? checkedIn : p));
+  return { ok: true, waitlist: { parties }, party: checkedIn };
 }
