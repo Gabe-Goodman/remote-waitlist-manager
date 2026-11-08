@@ -1,5 +1,5 @@
-// The one journey with JavaScript on: the Copy button exists only for
-// browsers that run the card's script. Against the built app in Docker
+// The one journey with JavaScript on: the Copy button shows only for
+// browsers that run the page's script. Against the built app in Docker
 // Compose (see playwright.config.ts).
 import { expect, test } from "@playwright/test";
 

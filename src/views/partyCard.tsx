@@ -4,7 +4,6 @@
 // ready to copy; and, while it's still in the queue, a way to leave.
 // Renders only: the route passes in the state and the site's origin.
 import type { Party, PartyState } from "../domain/waitlist.js";
-import { copyScript } from "./copyScript.js";
 import { cardTitles, messages } from "./messages.js";
 
 // origin: the site's address as the diner reached it, so the link works
@@ -21,7 +20,9 @@ export function PartyCard({
   const placeGone = state.kind === "done" || state.kind === "left";
   const inQueue = state.kind === "waiting" || state.kind === "ready";
   return (
-    <section className="card">
+    // data-state lets the live update tell the states apart without
+    // reading the wording.
+    <section className="card" data-state={state.kind}>
       <h1>{cardTitles[state.kind]}</h1>
       {/* Where you stand comes first and largest: it's what a diner looks
           for every time they glance at their phone. */}
@@ -93,9 +94,10 @@ function ShareLink({ link }: { link: string }) {
   return (
     <div className="share">
       <label htmlFor="party-link">{messages.partyLinkLabel}</label>
-      {/* The Copy button sits inside the field, so turning it on moves
-          nothing. Rendered hidden: without JavaScript it would do nothing.
-          "custom" opts it out of TableKit's filled button: it's an icon. */}
+      {/* The Copy button sits inside the field, so showing it moves
+          nothing. The stylesheet shows it only when the page's script runs:
+          without JavaScript it would do nothing. "custom" opts it out of
+          TableKit's filled button: it's an icon. */}
       <div className="copy-field">
         <input
           id="party-link"
@@ -109,14 +111,12 @@ function ShareLink({ link }: { link: string }) {
           id="copy-link"
           className="custom"
           aria-label={messages.copyLink}
-          hidden
         >
           <CopyIcon />
           <CheckIcon />
         </button>
         <span role="status" id="copy-status" className="visually-hidden" />
       </div>
-      <script>{copyScript}</script>
       <p id="party-link-hint" className="secondary">
         {messages.partyLinkHint}
       </p>

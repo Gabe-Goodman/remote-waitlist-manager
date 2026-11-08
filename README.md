@@ -16,11 +16,12 @@ src/
 │   ├── waitlistStore.ts     MongoDB only: the whole waitlist in one versioned document
 │   └── testDb.ts            test helper: a fresh collection per test in its own database
 ├── routes/
-│   └── waitlistRoutes.tsx   HTTP only: every URL (/, POST /parties, /party/:token, /health), the party cookie, compression
+│   └── waitlistRoutes.tsx   HTTP only: every URL (/, /card, POST /parties, /party/:token, /join-again, POST /check-in, POST /leave, /health), the party cookie, compression
 ├── views/
 │   ├── waitlistPage.tsx     the one / page: the join form, or the party's card
 │   ├── partyCard.tsx        the party's current state: name, size, parties ahead, its link to copy
-│   ├── copyScript.ts        the card's only script: the Copy button for the party's link
+│   ├── copyScript.ts        the card page's script for the Copy button
+│   ├── updateScript.ts      the card page's live update: fetches /card every 2 s and swaps the card when it changes
 │   ├── errorPage.tsx        the friendly page when something goes wrong
 │   ├── layout.tsx           the HTML shell every page shares; carries TableKit's classless stylesheet inline
 │   ├── messages.ts          every word a diner reads
@@ -29,7 +30,9 @@ src/
 e2e/
 ├── health.spec.ts           smoke test: the built app starts and serves /health
 ├── waitlist.spec.ts         diner journeys, JavaScript off
-└── copyLink.spec.ts         JavaScript on: the Copy button copies the party's link
+├── checkIn.spec.ts          JavaScript off: check in, the next party's turn after a service, joining again
+├── copyLink.spec.ts         JavaScript on: the Copy button copies the party's link
+└── liveCard.spec.ts         JavaScript on: a waiting party's card turns ready without a reload
 ```
 
 ## Run it
@@ -65,7 +68,7 @@ npx playwright install chromium     # once
 npm run test:e2e                    # builds and starts the app in Docker, then runs Playwright
 ```
 
-The e2e tests start their own copy of the app and stop if something already uses port 3000, so stop `npm run dev` or `docker compose` first. They run in a phone-sized browser with JavaScript turned off, except `copyLink.spec.ts`, which needs it for the Copy button.
+The e2e tests start their own copy of the app and stop if something already uses port 3000, so stop `npm run dev` or `docker compose` first. They run in a phone-sized browser with JavaScript turned off, except `copyLink.spec.ts` and `liveCard.spec.ts`, which need it for the Copy button and the live card.
 
 ---
 
