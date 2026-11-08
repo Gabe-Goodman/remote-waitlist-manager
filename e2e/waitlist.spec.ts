@@ -24,7 +24,7 @@ test("joins the waitlist, lands on the party's page and stays there after a relo
   await expect(
     page.getByRole("heading", { name: "You're on the waitlist" }),
   ).toBeVisible();
-  await expect(page.getByText("Ana · Party of 2")).toBeVisible();
+  await expect(page.getByText("Ana, party of 2")).toBeVisible();
   await expect(
     page.getByText(/^(No parties|\d+ part(y|ies)) ahead of you\.$/),
   ).toBeVisible();
@@ -35,5 +35,5 @@ test("joins the waitlist, lands on the party's page and stays there after a relo
   await expect(
     page.getByRole("heading", { name: "You're on the waitlist" }),
   ).toBeVisible();
-  await expect(page.getByText("Ana · Party of 2")).toBeVisible();
+  await expect(page.getByText("Ana, party of 2")).toBeVisible();
 });

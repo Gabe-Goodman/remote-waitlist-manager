@@ -16,12 +16,12 @@ src/
 │   ├── waitlistStore.ts     MongoDB only: the whole waitlist in one versioned document
 │   └── testDb.ts            test helper: a fresh collection per test in its own database
 ├── routes/
-│   └── waitlistRoutes.tsx   HTTP only: every URL (/, POST /parties, /health), the party cookie
+│   └── waitlistRoutes.tsx   HTTP only: every URL (/, POST /parties, /health), the party cookie, compression
 ├── views/
 │   ├── waitlistPage.tsx     the one / page: the join form, or the party's card
 │   ├── partyCard.tsx        the party's current state: name, size, parties ahead
 │   ├── errorPage.tsx        the friendly page when something goes wrong
-│   ├── layout.tsx           the HTML shell every page shares
+│   ├── layout.tsx           the HTML shell every page shares; carries TableKit's classless stylesheet inline
 │   ├── messages.ts          every word a diner reads
 │   └── html.ts              toHtml: a page as an HTML document
 └── server.ts                wiring: settings, MongoDB connection, creating the waitlist, routes, graceful shutdown

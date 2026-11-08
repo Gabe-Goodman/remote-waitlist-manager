@@ -8,6 +8,7 @@
   },
   "dependencies": {
     "@hono/node-server": "^2.1.6",
+    "@tablecheck/tablekit-css": "4.3.1",
     "hono": "^4.13.16",
     "mongodb": "^7.8.0",
     "react": "^19.3.1",

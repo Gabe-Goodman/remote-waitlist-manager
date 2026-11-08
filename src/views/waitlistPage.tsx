@@ -18,6 +18,14 @@ import {
 } from "./messages.js";
 import { PartyCard } from "./partyCard.js";
 
+// TableKit's alert colours: busy isn't the diner's mistake, so it's a
+// warning, not an error.
+const noticeVariants: Record<Notice, "error" | "warning"> = {
+  "fix-fields": "error",
+  duplicate: "error",
+  busy: "warning",
+};
+
 const partySizes = Array.from({ length: maxPartySize }, (_, i) => i + 1);
 
 /** A refused join: what the diner typed, and why it was refused. */
@@ -57,15 +65,22 @@ export function WaitlistPage(props: WaitlistPageProps) {
     <Layout title={messages.joinTitle}>
       <h1>{messages.joinTitle}</h1>
       <p className="waiting">{messages.waiting(waiting)}</p>
-      <p>{messages.joinIntro}</p>
+      <p className="secondary">{messages.joinIntro}</p>
       {/* noValidate: every error comes from the server, worded the same way
           in every browser. */}
       <form method="post" action="/parties" noValidate>
         {refused && (
-          <div role="alert" className="notice">
+          <div
+            role="alert"
+            className="alert"
+            data-variant={noticeVariants[refused.notice]}
+            data-layout="text-only"
+          >
             {noticeMessages[refused.notice]}
           </div>
         )}
+        {/* data-stretch: TableKit's fields are 220px wide unless stretched
+            to the full width of the form. */}
         <label htmlFor="name">{messages.nameLabel}</label>
         <input
           id="name"
@@ -73,6 +88,7 @@ export function WaitlistPage(props: WaitlistPageProps) {
           autoComplete="name"
           maxLength={maxNameLength}
           required
+          data-stretch
           defaultValue={values.name}
           {...errorAttributes("name", nameError)}
         />
@@ -85,6 +101,7 @@ export function WaitlistPage(props: WaitlistPageProps) {
           autoComplete="email"
           maxLength={maxEmailLength}
           required
+          data-stretch
           defaultValue={values.email}
           {...errorAttributes("email", emailError)}
         />
@@ -98,6 +115,7 @@ export function WaitlistPage(props: WaitlistPageProps) {
           name="size"
           defaultValue={size}
           required
+          data-stretch
           {...errorAttributes("size", sizeError)}
         >
           <option value="" disabled>
@@ -116,10 +134,15 @@ export function WaitlistPage(props: WaitlistPageProps) {
   );
 }
 
-// Screen readers announce the field as invalid and read its error with it.
+// aria-invalid and aria-describedby: screen readers announce the field as
+// invalid and read its error with it. data-variant: TableKit's red border.
 function errorAttributes(field: string, error: string | undefined) {
   return error
-    ? { "aria-invalid": true, "aria-describedby": `${field}-error` }
+    ? {
+        "aria-invalid": true,
+        "aria-describedby": `${field}-error`,
+        "data-variant": "error",
+      }
     : {};
 }
 
