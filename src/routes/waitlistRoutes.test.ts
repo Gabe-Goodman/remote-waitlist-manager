@@ -518,15 +518,15 @@ describe("the party's link", () => {
     const joinForm = await (await app.request("/")).text();
 
     const head = /<head>[\s\S]*<\/head>/.exec(page)?.[0] ?? "";
-    expect(head).toMatch(
-      /<script>[\s\S]*document\.documentElement\.classList\.add\("js"\)[\s\S]*<\/script>/,
-    );
-    expect(head).toMatch(/<script>[\s\S]*copy-link[\s\S]*<\/script>/);
+    const copyLinkJs = readFileSync("browser/copyLink.js", "utf8");
+    expect(head.includes(copyLinkJs)).toBe(true);
     expect(card).toMatch(
       /<button type="button" id="copy-link" class="custom" aria-label="Copy link"><svg aria-hidden="true"/,
     );
+    // The wording lives in messages.ts and reaches the script through the
+    // page, so the script itself holds no text a diner reads.
     expect(card).toContain(
-      '<span role="status" id="copy-status" class="visually-hidden"></span>',
+      '<span role="status" id="copy-status" class="visually-hidden" data-copied-text="Link copied"></span>',
     );
     expect(card).not.toContain("<script");
     expect(joinForm).not.toContain("<script");
@@ -1004,7 +1004,7 @@ describe("the card on its own", () => {
     expect(card).not.toContain("<html");
     expect(card).not.toContain("<style");
     expect(card).toMatch(
-      /^<section class="card" data-state="ready">[\s\S]*<\/section>$/,
+      /^<section class="card" data-state="ready" data-title="Your table is ready!">[\s\S]*<\/section>$/,
     );
     const page = await cardHtml(app, anasCookie);
     expect(page.match(/<section class="card"[\s\S]*?<\/section>/)?.[0]).toBe(
@@ -1020,7 +1020,10 @@ describe("the card on its own", () => {
     const card = await (await getCard(app, anasCookie)).text();
 
     expect(card).toContain("You&#x27;re checked in.");
-    expect(card).toMatch(/^<section class="card" data-state="in-service">/);
+    // The card carries its own title, so the live update can set the tab's.
+    expect(card).toMatch(
+      /^<section class="card" data-state="in-service" data-title="You&#x27;re checked in.">/,
+    );
   });
 
   test("keeps the card up to date only on the card page", async () => {
@@ -1032,7 +1035,8 @@ describe("the card on its own", () => {
     const joinForm = await (await app.request("/")).text();
 
     const head = /<head>[\s\S]*<\/head>/.exec(page)?.[0] ?? "";
-    expect(head).toMatch(/<script>[\s\S]*fetch\("\/card"[\s\S]*<\/script>/);
+    const liveCardJs = readFileSync("browser/liveCard.js", "utf8");
+    expect(head.includes(liveCardJs)).toBe(true);
     expect(card).not.toContain("<script");
     expect(joinForm).not.toContain("<script");
   });
@@ -1230,7 +1234,7 @@ describe("the back button", () => {
 });
 
 describe("styling", () => {
-  test("carries TableKit's stylesheet in every page", async () => {
+  test("carries TableKit's stylesheet and the page's own in every page", async () => {
     vi.spyOn(console, "error").mockImplementation(() => {});
     const tablekitCss = readFileSync(
       createRequire(import.meta.url).resolve(
@@ -1238,6 +1242,7 @@ describe("styling", () => {
       ),
       "utf8",
     );
+    const pageCss = readFileSync("browser/page.css", "utf8");
     const app = await routes();
     const joined = await postJoin(app, ana);
     const failing = waitlistRoutes(
@@ -1258,6 +1263,7 @@ describe("styling", () => {
       // includes() rather than toContain(): a failure would print all 115 KB.
       const html = await response.text();
       expect(html.includes(`<style>${tablekitCss}</style>`), page).toBe(true);
+      expect(html.includes(`<style>${pageCss}</style>`), page).toBe(true);
     }
   });
 

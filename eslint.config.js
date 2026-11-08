@@ -16,4 +16,25 @@ export default tseslint.config(
       },
     },
   },
+  {
+    // The browser's own scripts: plain JavaScript, typed by
+    // tsconfig.browser.json instead, so the type-aware rules are off here.
+    files: ["browser/**/*.js"],
+    extends: [tseslint.configs.disableTypeChecked],
+    languageOptions: {
+      sourceType: "script",
+      globals: {
+        document: "readonly",
+        navigator: "readonly",
+        window: "readonly",
+        fetch: "readonly",
+        setTimeout: "readonly",
+        clearTimeout: "readonly",
+        Element: "readonly",
+        HTMLInputElement: "readonly",
+        HTMLElement: "readonly",
+        HTMLDetailsElement: "readonly",
+      },
+    },
+  },
 );

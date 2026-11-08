@@ -7,7 +7,11 @@ Diners at a fully booked restaurant join a virtual waitlist from their phone, se
 ## Architecture
 
 ```
-src/
+browser/                     what runs or applies in the diner's browser, inlined into the page
+├── page.css                 the page's own CSS: layout rules on top of TableKit
+├── copyLink.js              the Copy button: copies the party's link to the phone's clipboard
+└── liveCard.js              keeps the card up to date: fetches /card every 2 s and swaps it when it changes
+src/                         what runs on the server
 ├── domain/
 │   └── waitlist.ts          rules only (pure functions): validating the join form, joining, no duplicate emails, parties ahead, service time, who is ready (strict order, seats held), the check-in deadline and running out of time, seats available, where each party stands
 ├── services/
@@ -20,11 +24,9 @@ src/
 ├── views/
 │   ├── waitlistPage.tsx     the one / page: the join form, or the party's card
 │   ├── partyCard.tsx        the party's current state: name, size, parties ahead or the time to check in by, its link to copy
-│   ├── copyScript.ts        the card page's script for the Copy button
-│   ├── updateScript.ts      the card page's live update: fetches /card every 2 s and swaps the card when it changes
 │   ├── errorPage.tsx        the friendly page when something goes wrong
-│   ├── layout.tsx           the HTML shell every page shares; carries TableKit's classless stylesheet inline
-│   ├── pageStyles.ts        the page's own CSS: layout rules on top of TableKit
+│   ├── browserFiles.ts      reads the browser/ files once at startup, for the pages to inline
+│   ├── layout.tsx           the HTML shell every page shares; inlines TableKit's classless stylesheet and browser/page.css
 │   ├── messages.ts          every word a diner reads
 │   └── html.ts              toHtml: a page as an HTML document
 └── server.ts                wiring: settings, MongoDB connection, creating the waitlist, routes, graceful shutdown

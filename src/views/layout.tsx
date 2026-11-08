@@ -4,7 +4,7 @@
 import { readFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import type { ReactNode } from "react";
-import { pageStyles } from "./pageStyles.js";
+import { pageCss } from "./browserFiles.js";
 
 // TableKit's classless stylesheet, inlined into every page rather than
 // linked: on a slow phone connection a linked stylesheet is a second request
@@ -35,7 +35,7 @@ export function Layout({
         {/* TableKit first: the page's own rules below win where their
             selectors are as specific as TableKit's. */}
         <style>{tablekitCss}</style>
-        <style>{pageStyles}</style>
+        <style>{pageCss}</style>
         {/* In the <head>, so it runs before the body is drawn. */}
         {script && <script>{script}</script>}
       </head>
