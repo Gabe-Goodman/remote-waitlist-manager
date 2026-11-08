@@ -2,14 +2,14 @@
 
 Diners at a fully booked restaurant join a virtual waitlist from their phone, see their place in the queue, and check in when their table is ready. The assignment is at the bottom of this file.
 
-> Work in progress: the app is being built one pull request at a time. So far a diner can join the waitlist and see their place in the queue.
+> Work in progress: the app is being built one pull request at a time. So far a diner can join the waitlist, watch their place in the queue update on its own, share their party's link, leave, check in when their table is ready (within a minute, or lose their place), and join again after their meal.
 
 ## Architecture
 
 ```
 src/
 ├── domain/
-│   └── waitlist.ts          rules only (pure functions): validating the join form, joining, no duplicate emails, parties ahead, service time, who is ready (strict order, seats held), seats available, where each party stands
+│   └── waitlist.ts          rules only (pure functions): validating the join form, joining, no duplicate emails, parties ahead, service time, who is ready (strict order, seats held), the check-in deadline and running out of time, seats available, where each party stands
 ├── services/
 │   └── waitlistService.ts   use cases: load, apply a rule, save only if nobody saved in between, retry on conflict
 ├── storage/
@@ -19,7 +19,7 @@ src/
 │   └── waitlistRoutes.tsx   HTTP only: every URL (/, /card, POST /parties, /party/:token, /join-again, POST /check-in, POST /leave, /health), the party cookie, compression
 ├── views/
 │   ├── waitlistPage.tsx     the one / page: the join form, or the party's card
-│   ├── partyCard.tsx        the party's current state: name, size, parties ahead, its link to copy
+│   ├── partyCard.tsx        the party's current state: name, size, parties ahead or the time to check in by, its link to copy
 │   ├── copyScript.ts        the card page's script for the Copy button
 │   ├── updateScript.ts      the card page's live update: fetches /card every 2 s and swaps the card when it changes
 │   ├── errorPage.tsx        the friendly page when something goes wrong
@@ -45,6 +45,8 @@ docker compose up --build
 ```
 
 Then open http://localhost:3000 to join the waitlist. From a phone on the same Wi-Fi, use your computer's IP address instead of `localhost`.
+
+Check-in deadlines are shown in the restaurant's time zone, `Asia/Tokyo` unless you set another: `RESTAURANT_TIME_ZONE=Europe/London docker compose up`.
 
 If port 27017 is already in use, run `MONGO_PORT=27018 docker compose up`.
 

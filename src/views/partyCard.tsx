@@ -1,23 +1,31 @@
 // The party's current state: waiting (with its place in the queue), ready
-// (with the Check-in button), checked in, or done or left (with a link to
-// join again); its name and size; while it still has a place, its link,
-// ready to copy; and, while it's still in the queue, a way to leave.
+// (with the Check-in button), checked in, or done, left or out of time (with
+// a link to join again); its name and size; while it still has a place, its
+// link, ready to copy; and, while it's still in the queue, a way to leave.
 // Renders only: the route passes in the state and the site's origin.
-import type { Party, PartyState } from "../domain/waitlist.js";
+import {
+  checkInWindowMs,
+  type Party,
+  type PartyState,
+} from "../domain/waitlist.js";
 import { cardTitles, messages } from "./messages.js";
 
 // origin: the site's address as the diner reached it, so the link works
-// when opened on another phone.
+// when opened on another phone. timeZone: the restaurant's, for the
+// check-in deadline.
 export function PartyCard({
   party,
   state,
   origin,
+  timeZone,
 }: {
   party: Party;
   state: PartyState;
   origin: string;
+  timeZone: string;
 }) {
-  const placeGone = state.kind === "done" || state.kind === "left";
+  const placeGone =
+    state.kind === "done" || state.kind === "left" || state.kind === "expired";
   const inQueue = state.kind === "waiting" || state.kind === "ready";
   return (
     // data-state lets the live update tell the states apart without
@@ -27,7 +35,7 @@ export function PartyCard({
       {/* Where you stand comes first and largest: it's what a diner looks
           for every time they glance at their phone. */}
       <div className="place">
-        <StateLine state={state} />
+        <StateLine state={state} timeZone={timeZone} />
         <p>{messages.partyLine(party.name, party.size)}</p>
       </div>
       {/* A link, not a button, so nobody joins again the same evening by
@@ -44,25 +52,55 @@ export function PartyCard({
           <button type="submit">{messages.checkInButton}</button>
         </form>
       )}
-      {/* A finished party, or one that left, has no place left to share. */}
+      {/* A party that finished, left or ran out of time has no place left
+          to share. */}
       {!placeGone && <ShareLink link={`${origin}/party/${party.token}`} />}
       {inQueue && <LeaveControl />}
     </section>
   );
 }
 
-function StateLine({ state }: { state: PartyState }) {
+function StateLine({
+  state,
+  timeZone,
+}: {
+  state: PartyState;
+  timeZone: string;
+}) {
   switch (state.kind) {
     case "waiting":
       return <p className="ahead">{messages.ahead(state.ahead)}</p>;
     case "ready":
-      return <p className="ahead">{messages.checkInNow}</p>;
+      // The hold as a duration, the way a host would say it, then the
+      // deadline as a clock time, which stays true however long ago the page
+      // loaded. <time> carries the exact deadline in machine form.
+      return (
+        <p className="ahead">
+          {`${messages.holdFor(checkInWindowMs / 60_000)} ${messages.checkInBy} `}
+          <time dateTime={state.checkInBy.toISOString()}>
+            {clockTime(state.checkInBy, timeZone)}
+          </time>
+          .
+        </p>
+      );
     case "in-service":
       return <p className="ahead">{messages.enjoyMeal}</p>;
     case "done":
     case "left":
+    case "expired":
       return null;
   }
+}
+
+// 24-hour "18:02:37" in the restaurant's time zone, whatever the server's
+// is. Seconds, because the deadline falls on any second.
+function clockTime(date: Date, timeZone: string): string {
+  return new Intl.DateTimeFormat("en-GB", {
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    timeZone,
+  }).format(date);
 }
 
 // Leaving can't be undone, so it takes a second, deliberate tap: the summary

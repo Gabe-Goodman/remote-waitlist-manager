@@ -40,6 +40,7 @@ type WaitlistPageProps =
       party: Party;
       state: PartyState;
       origin: string;
+      timeZone: string;
       notice?: "other-party";
     }
   | {
@@ -75,6 +76,7 @@ export function WaitlistPage(props: WaitlistPageProps) {
           party={props.party}
           state={props.state}
           origin={props.origin}
+          timeZone={props.timeZone}
         />
       </Layout>
     );

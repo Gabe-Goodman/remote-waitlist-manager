@@ -25,6 +25,9 @@ const env = {
   newToken: () => `token-${++tokens}`,
 };
 
+// The restaurant's time zone, as server.ts passes it in.
+const timeZone = "Asia/Tokyo";
+
 /** An Environment whose clock the test moves forward by hand. */
 function movableClock() {
   let now = env.now();
@@ -43,7 +46,7 @@ async function emptyStore() {
 }
 
 async function routes() {
-  return waitlistRoutes(waitlistService(await emptyStore(), env));
+  return waitlistRoutes(waitlistService(await emptyStore(), env), timeZone);
 }
 
 async function pageHtml(path: string): Promise<string> {
@@ -160,7 +163,7 @@ describe("the join form", () => {
 describe("joining from the form", () => {
   test("joins and sends the diner to their page", async () => {
     const store = await emptyStore();
-    const app = waitlistRoutes(waitlistService(store, env));
+    const app = waitlistRoutes(waitlistService(store, env), timeZone);
 
     const response = await postJoin(app, ana);
 
@@ -174,7 +177,7 @@ describe("joining from the form", () => {
     const store = await emptyStore();
 
     const response = await postJoin(
-      waitlistRoutes(waitlistService(store, env)),
+      waitlistRoutes(waitlistService(store, env), timeZone),
       ana,
     );
 
@@ -239,7 +242,7 @@ describe("joining from the form", () => {
 
   test("refuses a taken email without revealing that party's link", async () => {
     const store = await emptyStore();
-    const app = waitlistRoutes(waitlistService(store, env));
+    const app = waitlistRoutes(waitlistService(store, env), timeZone);
     await postJoin(app, ana);
     const { waitlist } = await store.load();
     const anasToken = waitlist.parties[0]?.token ?? "missing";
@@ -543,6 +546,18 @@ async function cardHtml(app: Hono, cookie: string): Promise<string> {
 }
 
 describe("checking in", () => {
+  test("tells a ready party the time to check in by, in the restaurant's time zone", async () => {
+    const app = waitlistRoutes(
+      waitlistService(await emptyStore(), env),
+      "Europe/London",
+    );
+    const anasCookie = partyCookie(await postJoin(app, ana));
+
+    expect(await cardHtml(app, anasCookie)).toContain(
+      'Check in by <time dateTime="2026-11-07T18:01:00.000Z">18:01:00</time>.',
+    );
+  });
+
   test("shows a party whose table is ready the Check-in button", async () => {
     const app = await routes();
     const anasCookie = partyCookie(await postJoin(app, ana));
@@ -551,7 +566,10 @@ describe("checking in", () => {
 
     expect(html).toContain("<title>Your table is ready!</title>");
     expect(html).toContain("<h1>Your table is ready!</h1>");
-    expect(html).toContain("Check in now.");
+    // Ready at 18:00 UTC: a minute later is 03:01:00 the next day in Tokyo.
+    expect(html).toContain(
+      'We&#x27;ll hold it for 1 minute. Check in by <time dateTime="2026-11-07T18:01:00.000Z">03:01:00</time>.',
+    );
     expect(html).toContain("Ana, party of 2");
     expect(html).toContain(
       '<form action="/check-in" method="post"><button type="submit">Check in</button></form>',
@@ -611,7 +629,7 @@ describe("checking in", () => {
 
   test("sends a check-in without a party to the join form", async () => {
     const store = await emptyStore();
-    const app = waitlistRoutes(waitlistService(store, env));
+    const app = waitlistRoutes(waitlistService(store, env), timeZone);
 
     const noCookie = await postCheckIn(app);
     const unknownCookie = await postCheckIn(app, "partyToken=gone");
@@ -625,7 +643,10 @@ describe("checking in", () => {
 
   test("says thanks once the meal is over, without the party's link", async () => {
     const clock = movableClock();
-    const app = waitlistRoutes(waitlistService(await emptyStore(), clock.env));
+    const app = waitlistRoutes(
+      waitlistService(await emptyStore(), clock.env),
+      timeZone,
+    );
     const anasCookie = partyCookie(await postJoin(app, ana));
     await postCheckIn(app, anasCookie);
 
@@ -641,7 +662,10 @@ describe("checking in", () => {
 
   test("lets a browser whose party has finished join again", async () => {
     const clock = movableClock();
-    const app = waitlistRoutes(waitlistService(await emptyStore(), clock.env));
+    const app = waitlistRoutes(
+      waitlistService(await emptyStore(), clock.env),
+      timeZone,
+    );
     const anasCookie = partyCookie(await postJoin(app, ana));
     await postCheckIn(app, anasCookie);
     clock.advance(6000);
@@ -661,7 +685,10 @@ describe("checking in", () => {
 
   test("lets a finished party's browser open another party's link", async () => {
     const clock = movableClock();
-    const app = waitlistRoutes(waitlistService(await emptyStore(), clock.env));
+    const app = waitlistRoutes(
+      waitlistService(await emptyStore(), clock.env),
+      timeZone,
+    );
     const anasCookie = partyCookie(await postJoin(app, ana));
     await postCheckIn(app, anasCookie);
     const bensCookie = partyCookie(
@@ -684,7 +711,10 @@ describe("joining again", () => {
   /** A browser whose party of 2 has checked in, and the clock it runs on. */
   async function checkedInParty() {
     const clock = movableClock();
-    const app = waitlistRoutes(waitlistService(await emptyStore(), clock.env));
+    const app = waitlistRoutes(
+      waitlistService(await emptyStore(), clock.env),
+      timeZone,
+    );
     const anasCookie = partyCookie(await postJoin(app, ana));
     await postCheckIn(app, anasCookie);
     return { app, clock, anasCookie };
@@ -888,6 +918,73 @@ describe("leaving", () => {
   });
 });
 
+describe("running out of time to check in", () => {
+  /** A browser whose party of 8 is ready, with a party of 3 behind it. */
+  async function readyPartyWithBenBehind() {
+    const clock = movableClock();
+    const app = waitlistRoutes(
+      waitlistService(await emptyStore(), clock.env),
+      timeZone,
+    );
+    const anasCookie = partyCookie(await postJoin(app, { ...ana, size: "8" }));
+    const bensCookie = partyCookie(
+      await postJoin(app, { name: "Ben", email: "ben@example.com", size: "3" }),
+    );
+    return { app, clock, anasCookie, bensCookie };
+  }
+
+  test("tells a party whose check-in time ran out, with a link to join the waitlist again", async () => {
+    const { app, clock, anasCookie } = await readyPartyWithBenBehind();
+    clock.advance(60_000);
+
+    const html = await cardHtml(app, anasCookie);
+
+    expect(html).toContain("<h1>Your check-in time ran out</h1>");
+    expect(html).toContain('<a href="/join-again">Join the waitlist again</a>');
+    expect(html).not.toContain('action="/check-in"');
+  });
+
+  test("shows a party that ran out of time the join form with its name and email, without forgetting its party", async () => {
+    const { app, clock, anasCookie } = await readyPartyWithBenBehind();
+    clock.advance(60_000);
+
+    const response = await app.request("/join-again", {
+      headers: { Cookie: anasCookie },
+    });
+
+    expect(response.status).toBe(200);
+    const html = await response.text();
+    expect(html).toMatch(/<form [^>]*action="\/parties"/);
+    expect(tagWithId(html, "name")).toContain('value="Ana"');
+    expect(tagWithId(html, "email")).toContain('value="ana@example.com"');
+    expect(response.headers.get("Set-Cookie")).toBeNull();
+    expect(await cardHtml(app, anasCookie)).toContain(
+      "<h1>Your check-in time ran out</h1>",
+    );
+  });
+
+  test("lets a browser whose party ran out of time join again, behind the party now ready", async () => {
+    const { app, clock, anasCookie, bensCookie } =
+      await readyPartyWithBenBehind();
+    clock.advance(60_000);
+
+    const rejoined = await postJoin(
+      app,
+      { ...ana, size: "8" },
+      "http://localhost/parties",
+      { Cookie: anasCookie },
+    );
+
+    expect(rejoined.status).toBe(303);
+    const newCookie = partyCookie(rejoined);
+    expect(newCookie).not.toBe(anasCookie);
+    expect(await cardHtml(app, newCookie)).toContain("1 party ahead of you.");
+    expect(await cardHtml(app, bensCookie)).toContain(
+      "<h1>Your table is ready!</h1>",
+    );
+  });
+});
+
 /** GET /card, the way the card's live updates fetch it. */
 function getCard(app: Hono, cookie?: string) {
   return app.request("/card", { headers: cookie ? { Cookie: cookie } : {} });
@@ -1001,6 +1098,7 @@ describe("when joining can't go through", () => {
   test("asks the diner to tap Join again when the waitlist is busy, keeping what they typed", async () => {
     const app = waitlistRoutes(
       waitlistService(withSavesAlwaysConflicting(await emptyStore()), env),
+      timeZone,
     );
 
     const response = await postJoin(app, ana);
@@ -1020,6 +1118,7 @@ describe("when something goes wrong", () => {
     const log = vi.spyOn(console, "error").mockImplementation(() => {});
     const app = waitlistRoutes(
       waitlistService(withLoadFailing(await emptyStore()), env),
+      timeZone,
     );
 
     const response = await app.request("/");
@@ -1038,7 +1137,10 @@ describe("when something goes wrong", () => {
     vi.spyOn(console, "error").mockImplementation(() => {});
     const app = new Hono().route(
       "/",
-      waitlistRoutes(waitlistService(withLoadFailing(await emptyStore()), env)),
+      waitlistRoutes(
+        waitlistService(withLoadFailing(await emptyStore()), env),
+        timeZone,
+      ),
     );
 
     const response = await app.request("/");
@@ -1067,7 +1169,7 @@ describe("oversized form posts", () => {
 
   test("refuses a form post larger than 10 KB without saving anything", async () => {
     const store = await emptyStore();
-    const app = waitlistRoutes(waitlistService(store, env));
+    const app = waitlistRoutes(waitlistService(store, env), timeZone);
 
     const response = await postJoin(app, {
       ...ana,
@@ -1103,6 +1205,7 @@ describe("the back button", () => {
     );
     const failing = waitlistRoutes(
       waitlistService(withLoadFailing(await emptyStore()), env),
+      timeZone,
     );
 
     const pages = {
@@ -1139,6 +1242,7 @@ describe("styling", () => {
     const joined = await postJoin(app, ana);
     const failing = waitlistRoutes(
       waitlistService(withLoadFailing(await emptyStore()), env),
+      timeZone,
     );
 
     const pages = {
@@ -1183,10 +1287,11 @@ describe("styling", () => {
 
   test("shows the notice in a TableKit alert: error, or warning when busy", async () => {
     const store = await emptyStore();
-    const app = waitlistRoutes(waitlistService(store, env));
+    const app = waitlistRoutes(waitlistService(store, env), timeZone);
     await postJoin(app, ana);
     const busy = waitlistRoutes(
       waitlistService(withSavesAlwaysConflicting(store), env),
+      timeZone,
     );
 
     const notices = {

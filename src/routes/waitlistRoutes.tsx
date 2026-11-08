@@ -16,7 +16,12 @@ import { WaitlistPage } from "../views/waitlistPage.js";
 // The cookie that keeps this browser's party: its value is the party's token.
 const partyTokenCookie = "partyToken";
 
-export function waitlistRoutes(waitlist: WaitlistService): Hono {
+// timeZone: the restaurant's, for the check-in deadline on the card. Passed
+// in rather than read here, so tests can fix it.
+export function waitlistRoutes(
+  waitlist: WaitlistService,
+  timeZone: string,
+): Hono {
   const routes = new Hono();
 
   // Every page carries TableKit's 115 KB stylesheet; gzipped it's about
@@ -59,7 +64,12 @@ export function waitlistRoutes(waitlist: WaitlistService): Hono {
       const { party, state } = found;
       return c.html(
         toHtml(
-          <WaitlistPage party={party} state={state} origin={siteOrigin(c)} />,
+          <WaitlistPage
+            party={party}
+            state={state}
+            origin={siteOrigin(c)}
+            timeZone={timeZone}
+          />,
         ),
       );
     }
@@ -90,7 +100,12 @@ export function waitlistRoutes(waitlist: WaitlistService): Hono {
     const { party, state } = found;
     return c.html(
       toFragment(
-        <PartyCard party={party} state={state} origin={siteOrigin(c)} />,
+        <PartyCard
+          party={party}
+          state={state}
+          origin={siteOrigin(c)}
+          timeZone={timeZone}
+        />,
       ),
     );
   }
@@ -119,6 +134,7 @@ export function waitlistRoutes(waitlist: WaitlistService): Hono {
             party={ownParty.party}
             state={ownParty.state}
             origin={siteOrigin(c)}
+            timeZone={timeZone}
             notice="other-party"
           />,
         ),
@@ -245,9 +261,11 @@ export function waitlistRoutes(waitlist: WaitlistService): Hono {
 }
 
 // Waiting, ready or seated: the party still has a place this browser
-// mustn't lose. A party that finished or left has none.
+// mustn't lose. A party that finished, left or ran out of time has none.
 function holdsPlace(state: PartyState): boolean {
-  return state.kind !== "done" && state.kind !== "left";
+  return (
+    state.kind !== "done" && state.kind !== "left" && state.kind !== "expired"
+  );
 }
 
 // The site's address as this request reached it, so a shared link points

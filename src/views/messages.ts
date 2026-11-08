@@ -29,7 +29,9 @@ export const messages = {
       : count === 1
         ? "1 party ahead of you."
         : `${count} parties ahead of you.`,
-  checkInNow: "Check in now.",
+  holdFor: (minutes: number) =>
+    `We'll hold it for ${minutes === 1 ? "1 minute" : `${minutes} minutes`}.`,
+  checkInBy: "Check in by",
   checkInButton: "Check in",
   enjoyMeal: "Enjoy your meal.",
   joinAgain: "Join the waitlist again",
@@ -55,6 +57,7 @@ export const cardTitles: Record<PartyState["kind"], string> = {
   "in-service": "You're checked in.",
   done: "Thanks for dining with us.",
   left: "You've left the waitlist.",
+  expired: "Your check-in time ran out",
 };
 
 /** Form-level notices, shown in the box at the top of the form. */
