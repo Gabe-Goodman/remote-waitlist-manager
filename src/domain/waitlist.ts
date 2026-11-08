@@ -19,8 +19,10 @@ export type JoinValidation =
 
 // Long enough for any party name, short enough to fit on the card on a phone.
 export const maxNameLength = 50;
-// No party can be larger than the restaurant's 10 seats.
-export const maxPartySize = 10;
+// The spec: "Restaurant Capacity: Hardcoded to 10 seats".
+export const seatCount = 10;
+// No party can be larger than the restaurant's seats.
+export const maxPartySize = seatCount;
 // The longest address SMTP allows.
 export const maxEmailLength = 254;
 
@@ -62,6 +64,8 @@ export type Party = {
   email: string;
   size: number;
   joinedAt: Date;
+  /** When the party checked in; absent until then. */
+  checkedInAt?: Date;
 };
 
 /** The queue, in order: the first party joined first. */
@@ -109,11 +113,11 @@ export function join(
 }
 
 /**
- * How many parties a newcomer would have ahead of them. Every party on the
- * waitlist is waiting: no party can leave or finish.
+ * How many parties a newcomer would have ahead of them: those still waiting
+ * or ready. A party that has checked in has left the queue for its table.
  */
 export function partiesWaiting(waitlist: Waitlist): number {
-  return waitlist.parties.length;
+  return waitlist.parties.filter((party) => !party.checkedInAt).length;
 }
 
 /** A party and how many parties are ahead of it in the queue. */
@@ -132,4 +136,82 @@ export function partyPlace(
   if (!party) return undefined;
   const inFront = { parties: waitlist.parties.slice(0, index) };
   return { party, ahead: partiesWaiting(inFront) };
+}
+
+// The spec: "A party of 4 takes 12 seconds", so 3 seconds per person.
+export const serviceMsPerPerson = 3000;
+
+/** When the party's service ends; undefined until it has checked in. */
+export function serviceEndsAt(party: Party): Date | undefined {
+  if (!party.checkedInAt) return undefined;
+  return new Date(
+    party.checkedInAt.getTime() + party.size * serviceMsPerPerson,
+  );
+}
+
+export function isInService(party: Party, now: Date): boolean {
+  const endsAt = serviceEndsAt(party);
+  return endsAt !== undefined && now < endsAt;
+}
+
+export function isDone(party: Party, now: Date): boolean {
+  const endsAt = serviceEndsAt(party);
+  return endsAt !== undefined && now >= endsAt;
+}
+
+function totalSize(parties: readonly Party[]): number {
+  return parties.reduce((sum, party) => sum + party.size, 0);
+}
+
+/**
+ * The parties whose table is ready at `now`, in queue order. Derived from
+ * stored facts, never stored: time alone frees seats, so a stale snapshot
+ * can only under-count free seats, never overbook.
+ */
+export function readyParties(waitlist: Waitlist, now: Date): Party[] {
+  const seated = waitlist.parties.filter((party) => isInService(party, now));
+  let free = seatCount - totalSize(seated);
+  const ready: Party[] = [];
+  for (const party of waitlist.parties) {
+    if (party.checkedInAt) continue;
+    // First come, first served: at the first party that doesn't fit, everyone
+    // behind it waits too, even a smaller party that would fit. The price is
+    // idle seats behind a large party.
+    if (party.size > free) break;
+    // A ready party holds its seats, so it can always check in.
+    free -= party.size;
+    ready.push(party);
+  }
+  return ready;
+}
+
+/** Seats neither in service nor held by a ready party. */
+export function seatsAvailable(waitlist: Waitlist, now: Date): number {
+  const seated = waitlist.parties.filter((party) => isInService(party, now));
+  const held = readyParties(waitlist, now);
+  // The ready rule never takes more seats than are free; the clamp only keeps
+  // the count honest if stored data is ever inconsistent.
+  return Math.max(0, seatCount - totalSize(seated) - totalSize(held));
+}
+
+/** Where a party stands right now, derived from the stored facts. */
+export type PartyState =
+  | { kind: "waiting"; ahead: number }
+  | { kind: "ready" }
+  | { kind: "in-service" }
+  | { kind: "done" };
+
+export function partyState(
+  waitlist: Waitlist,
+  token: string,
+  now: Date,
+): PartyState | undefined {
+  const place = partyPlace(waitlist, token);
+  if (!place) return undefined;
+  const { party, ahead } = place;
+  if (isInService(party, now)) return { kind: "in-service" };
+  if (isDone(party, now)) return { kind: "done" };
+  const ready = readyParties(waitlist, now);
+  if (ready.some((r) => r.token === token)) return { kind: "ready" };
+  return { kind: "waiting", ahead };
 }
