@@ -56,7 +56,10 @@ export function waitlistRoutes(store: WaitlistStore, env: Environment): Hono {
     // the browser stops sending it, and show the join form.
     if (token) deleteCookie(c, "party", { path: "/" });
     const waiting = await waitingCount(store);
-    return c.html(toHtml(<WaitlistPage waiting={waiting} />));
+    // A new key for every rendering: each fresh form is a new attempt. A
+    // refused join's form keeps the key it was sent with instead.
+    const values = { name: "", email: "", size: "", joinKey: env.newToken() };
+    return c.html(toHtml(<WaitlistPage waiting={waiting} values={values} />));
   });
 
   // The done card's "Join the waitlist again" link. It only shows the form:
@@ -76,7 +79,10 @@ export function waitlistRoutes(store: WaitlistStore, env: Environment): Hono {
     const waiting = await waitingCount(store);
     return c.html(
       toHtml(
-        <WaitlistPage waiting={waiting} values={{ name, email, size: "" }} />,
+        <WaitlistPage
+          waiting={waiting}
+          values={{ name, email, size: "", joinKey: env.newToken() }}
+        />,
       ),
     );
   });
@@ -217,5 +223,10 @@ async function readJoinForm(
     const value = fields[name];
     return typeof value === "string" ? value : "";
   };
-  return { name: text("name"), email: text("email"), size: text("size") };
+  return {
+    name: text("name"),
+    email: text("email"),
+    size: text("size"),
+    joinKey: text("joinKey"),
+  };
 }

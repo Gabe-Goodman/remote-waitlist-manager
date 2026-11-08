@@ -37,10 +37,9 @@ export type RefusedJoin = {
   notice: Notice;
 };
 
-const noValues: JoinForm = { name: "", email: "", size: "" };
-
 // Either the party's card, or the join form with the waiting count: the
-// form can't be shown without the count.
+// form can't be shown without the count. The form always comes with its
+// values, joinKey included: the route makes the key, views make no tokens.
 type WaitlistPageProps =
   | {
       party: Party;
@@ -48,12 +47,14 @@ type WaitlistPageProps =
       origin: string;
       notice?: "other-party";
     }
+  | { party?: undefined; waiting: number; refused: RefusedJoin }
   | {
       party?: undefined;
       waiting: number;
-      refused?: RefusedJoin;
-      // What a finished party filled in last time, when it joins again.
-      values?: JoinForm;
+      refused?: undefined;
+      // Empty for a newcomer; what a finished party filled in last time,
+      // when it joins again.
+      values: JoinForm;
     };
 
 export function WaitlistPage(props: WaitlistPageProps) {
@@ -81,7 +82,7 @@ export function WaitlistPage(props: WaitlistPageProps) {
   }
 
   const { waiting, refused } = props;
-  const values = refused?.values ?? props.values ?? noValues;
+  const values = props.refused ? props.refused.values : props.values;
   const errors = refused?.errors ?? {};
   const nameError = errors.name && fieldErrorMessages.name[errors.name];
   const emailError = errors.email && fieldErrorMessages.email[errors.email];
@@ -97,6 +98,10 @@ export function WaitlistPage(props: WaitlistPageProps) {
       {/* noValidate: every error comes from the server, worded the same way
           in every browser. */}
       <form method="post" action="/parties" noValidate>
+        {/* Which rendering of the form this is: a double tap or a resent
+            copy lands on the party it already made, instead of being
+            refused as a duplicate of the diner's own email. */}
+        <input type="hidden" name="joinKey" value={values.joinKey} />
         {refused && (
           <div
             role="alert"

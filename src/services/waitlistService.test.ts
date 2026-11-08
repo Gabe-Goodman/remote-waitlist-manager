@@ -73,6 +73,7 @@ describe("joining the waitlist", () => {
       name: "Ana",
       email: "ana@example.com",
       size: "2",
+      joinKey: "",
     });
 
     if (!outcome.ok)
@@ -88,6 +89,7 @@ describe("joining the waitlist", () => {
       name: "",
       email: "ana@example.com",
       size: "2",
+      joinKey: "",
     });
 
     expect(outcome).toEqual({
@@ -107,6 +109,7 @@ describe("joining the waitlist", () => {
       name: `Party ${i}`,
       email: `party${i}@example.com`,
       size: "2",
+      joinKey: "",
     }));
 
     const outcomes = await Promise.all(
@@ -120,7 +123,12 @@ describe("joining the waitlist", () => {
 
   test("lets only one of two simultaneous joins with the same email in", async () => {
     const store = await emptyStore();
-    const form = { name: "Ana", email: "ana@example.com", size: "2" };
+    const form = {
+      name: "Ana",
+      email: "ana@example.com",
+      size: "2",
+      joinKey: "",
+    };
 
     const outcomes = await Promise.all([
       joinWaitlist(store, env, form),
@@ -135,6 +143,46 @@ describe("joining the waitlist", () => {
     const { waitlist } = await store.load();
     expect(waitlist.parties).toHaveLength(1);
   });
+
+  test("lets two simultaneous submissions of the same form make one party", async () => {
+    const store = await emptyStore();
+    const form = {
+      name: "Ana",
+      email: "ana@example.com",
+      size: "2",
+      joinKey: "key-1",
+    };
+
+    const [first, second] = await Promise.all([
+      joinWaitlist(store, env, form),
+      joinWaitlist(store, env, form),
+    ]);
+
+    if (!first?.ok || !second?.ok)
+      throw new Error(`join refused: ${JSON.stringify([first, second])}`);
+    expect(second.party.token).toBe(first.party.token);
+    const { waitlist } = await store.load();
+    expect(waitlist.parties).toHaveLength(1);
+  });
+
+  test("doesn't save again when the same form is sent after it succeeded", async () => {
+    const store = await emptyStore();
+    const form = {
+      name: "Ana",
+      email: "ana@example.com",
+      size: "2",
+      joinKey: "key-1",
+    };
+    const first = await joinWaitlist(store, env, form);
+    const { version } = await store.load();
+
+    const second = await joinWaitlist(store, env, form);
+
+    if (!first.ok || !second.ok)
+      throw new Error(`join refused: ${JSON.stringify([first, second])}`);
+    expect(second.party.token).toBe(first.party.token);
+    expect((await store.load()).version).toBe(version);
+  });
 });
 
 async function joined(store: WaitlistStore, name: string, size: number) {
@@ -142,6 +190,7 @@ async function joined(store: WaitlistStore, name: string, size: number) {
     name,
     email: `${name.toLowerCase()}@example.com`,
     size: String(size),
+    joinKey: "",
   });
   if (!outcome.ok) throw new Error(`join refused: ${JSON.stringify(outcome)}`);
   return outcome.party;

@@ -1,8 +1,16 @@
 // The waitlist's rules: pure functions. No database, no clock, no HTTP;
 // the current time and new tokens are passed in.
 
-/** The join form as submitted: every field is text until validated. */
-export type JoinForm = { name: string; email: string; size: string };
+/**
+ * The join form as submitted: every field is text until validated.
+ * `joinKey` is the token the form was rendered with; "" when missing.
+ */
+export type JoinForm = {
+  name: string;
+  email: string;
+  size: string;
+  joinKey: string;
+};
 
 /** A join form that passed validation, cleaned up. */
 export type JoinDetails = { name: string; email: string; size: number };
@@ -33,7 +41,9 @@ const emailShape = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 // Digits only: Number() alone would also accept "1e1" or "0x5".
 const wholeNumber = /^\d+$/;
 
-export function validateJoin(form: JoinForm): JoinValidation {
+export function validateJoin(
+  form: Pick<JoinForm, "name" | "email" | "size">,
+): JoinValidation {
   const name = form.name.trim();
   // Lowercased so the same address typed differently counts as one party
   // for the duplicate rule. No provider-specific rules (such as Gmail's
@@ -66,6 +76,11 @@ export type Party = {
   joinedAt: Date;
   /** When the party checked in; absent until then. */
   checkedInAt?: Date;
+  /**
+   * The key of the form that created the party, so a resubmission of the
+   * same form is recognised.
+   */
+  joinKey?: string;
 };
 
 /** The queue, in order: the first party joined first. */
@@ -74,20 +89,37 @@ export type Waitlist = { parties: readonly Party[] };
 /** What joining needs from outside the rules: the current time and a new token. */
 export type JoinContext = { now: Date; token: string };
 
+/**
+ * `created: false` means the form had already made this party: the
+ * waitlist is returned unchanged and there is nothing to save.
+ */
 export type JoinResult =
-  | { ok: true; waitlist: Waitlist; party: Party }
+  | { ok: true; waitlist: Waitlist; party: Party; created: boolean }
   | { ok: false; reason: "invalid"; errors: FieldErrors }
   | { ok: false; reason: "duplicate" };
 
 /**
  * Validates the form and adds the party at the back of the queue, unless
- * an active party already has its email.
+ * an active party already has its email. A form that already made an
+ * active party returns that party instead.
  */
 export function join(
   waitlist: Waitlist,
   form: JoinForm,
   context: JoinContext,
 ): JoinResult {
+  // Checked before validating: a matching key means this submission already
+  // succeeded, whatever the copy sent now says. Only an active party counts,
+  // so a finished party's old form can't bring it back.
+  const joined =
+    form.joinKey === ""
+      ? undefined
+      : waitlist.parties.find(
+          (party) =>
+            party.joinKey === form.joinKey && isActive(party, context.now),
+        );
+  if (joined) return { ok: true, waitlist, party: joined, created: false };
+
   const validation = validateJoin(form);
   if (!validation.ok) {
     return { ok: false, reason: "invalid", errors: validation.errors };
@@ -107,11 +139,13 @@ export function join(
     token: context.token,
     ...validation.details,
     joinedAt: context.now,
+    ...(form.joinKey === "" ? {} : { joinKey: form.joinKey }),
   };
   return {
     ok: true,
     waitlist: { parties: [...waitlist.parties, party] },
     party,
+    created: true,
   };
 }
 

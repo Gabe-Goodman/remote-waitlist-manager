@@ -66,6 +66,9 @@ export async function joinWaitlist(
     const context = { now: env.now(), token: env.newToken() };
     const result = join(waitlist, form, context);
     if (!result.ok) return result;
+    // The form already made this party and nothing changed: saving would
+    // only bump the version and make concurrent writes retry for nothing.
+    if (!result.created) return { ok: true as const, party: result.party };
 
     const saved = await store.saveIfVersion(result.waitlist, version);
     if (saved === "conflict") return "conflict";

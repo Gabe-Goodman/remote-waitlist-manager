@@ -16,7 +16,7 @@ import {
   type Party,
 } from "./waitlist.js";
 
-const valid = { name: "Ana", email: "ana@example.com", size: "2" };
+const valid = { name: "Ana", email: "ana@example.com", size: "2", joinKey: "" };
 
 /** An email of exactly `length` characters, shaped like x@y.z. */
 function emailOfLength(length: number): string {
@@ -203,6 +203,71 @@ describe("never on the list twice", () => {
       reason: "invalid",
       errors: { size: "invalid" },
     });
+  });
+});
+
+describe("the same form sent twice", () => {
+  test("returns the party a join key already made, without adding another", () => {
+    const ana = partyNamed("Ana", { joinKey: "key-1" });
+    const waitlist = { parties: [ana] };
+
+    const result = join(waitlist, { ...valid, joinKey: "key-1" }, context);
+
+    if (!result.ok) throw new Error(`join refused: ${JSON.stringify(result)}`);
+    expect(result.party).toBe(ana);
+    expect(result.created).toBe(false);
+    expect(result.waitlist.parties).toEqual([ana]);
+  });
+
+  test("checks the join key before validating the form", () => {
+    const ana = partyNamed("Ana", { joinKey: "key-1" });
+
+    const result = join(
+      { parties: [ana] },
+      { ...valid, name: "", joinKey: "key-1" },
+      context,
+    );
+
+    if (!result.ok) throw new Error(`join refused: ${JSON.stringify(result)}`);
+    expect(result.party).toBe(ana);
+  });
+
+  test("ignores the join key of a party that has finished", () => {
+    const finished = partyNamed("Ana", {
+      size: 2,
+      checkedInAt: new Date("2026-11-07T17:55:00Z"),
+      joinKey: "key-1",
+    });
+
+    const result = join(
+      { parties: [finished] },
+      { ...valid, joinKey: "key-1" },
+      context,
+    );
+
+    if (!result.ok) throw new Error(`join refused: ${JSON.stringify(result)}`);
+    expect(result.created).toBe(true);
+    expect(result.party.token).toBe("token-ana");
+    expect(result.waitlist.parties).toHaveLength(2);
+  });
+
+  test("stores the join key on a new party", () => {
+    const result = join(
+      { parties: [] },
+      { ...valid, joinKey: "key-2" },
+      context,
+    );
+
+    if (!result.ok) throw new Error(`join refused: ${JSON.stringify(result)}`);
+    expect(result.party.joinKey).toBe("key-2");
+  });
+
+  test("joins as usual without a join key", () => {
+    const result = join({ parties: [] }, valid, context);
+
+    if (!result.ok) throw new Error(`join refused: ${JSON.stringify(result)}`);
+    expect(result.created).toBe(true);
+    expect(result.party).not.toHaveProperty("joinKey");
   });
 });
 
