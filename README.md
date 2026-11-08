@@ -20,7 +20,8 @@ src/                         what runs on the server
 │   ├── waitlistStore.ts     MongoDB only: the whole waitlist in one versioned document
 │   └── testDb.ts            test helper: a fresh collection per test in its own database
 ├── routes/
-│   └── waitlistRoutes.tsx   HTTP only: every URL (/, /card, POST /parties, /party/:token, /join-again, POST /check-in, POST /leave, /health), the party cookie, compression
+│   ├── waitlistRoutes.ts    HTTP only: the list of every URL (/ and its ?rejoin=, /party/:token with its /card and its POST /check-in and /leave, POST /parties, /health), compression, the body limit
+│   └── waitlistHandlers.ts  what each URL does: reads the cookie and the form, asks the service, picks the page or redirect
 ├── views/
 │   ├── waitlistPage.tsx     the one / page: the join form, or the party's card
 │   ├── partyCard.tsx        the party's current state: name, size, parties ahead or the time to check in by, its link to copy

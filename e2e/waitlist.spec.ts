@@ -42,7 +42,8 @@ test("joins the waitlist, lands on the party's page and stays there after a relo
     size: "2",
   });
 
-  await expect(page).toHaveURL("/");
+  // The party's own page: the address bar is the link to share.
+  await expect(page).toHaveURL(/\/party\/[\w-]+$/);
   await expect(page.getByRole("heading", { name: cardHeading })).toBeVisible();
   await expect(page.getByText("Ana, party of 2")).toBeVisible();
   await expect(

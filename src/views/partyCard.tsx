@@ -8,22 +8,26 @@ import {
   type Party,
   type PartyState,
 } from "../domain/waitlist.js";
+import { toFragment } from "./html.js";
 import { cardTitles, messages } from "./messages.js";
 
-// origin: the site's address as the diner reached it, so the link works
-// when opened on another phone. timeZone: the restaurant's, for the
-// check-in deadline.
-export function PartyCard({
-  party,
-  state,
-  origin,
-  timeZone,
-}: {
+type PartyCardProps = {
   party: Party;
   state: PartyState;
   origin: string;
   timeZone: string;
-}) {
+};
+
+// The card on its own, as HTML, for the live update: the same component the
+// page shows, so an update can't show a card the page wouldn't.
+export function cardFragment(props: PartyCardProps): string {
+  return toFragment(<PartyCard {...props} />);
+}
+
+// origin: the site's address as the diner reached it, so the link works
+// when opened on another phone. timeZone: the restaurant's, for the
+// check-in deadline.
+export function PartyCard({ party, state, origin, timeZone }: PartyCardProps) {
   const placeGone =
     state.kind === "done" || state.kind === "left" || state.kind === "expired";
   const inQueue = state.kind === "waiting" || state.kind === "ready";
@@ -46,20 +50,20 @@ export function PartyCard({
           accident. */}
       {placeGone && (
         <p className="join-again">
-          <a href="/join-again">{messages.joinAgain}</a>
+          <a href={`/?rejoin=${party.token}`}>{messages.joinAgain}</a>
         </p>
       )}
       {/* The page's only filled button, so the one thing to do now is the
           one that stands out. */}
       {state.kind === "ready" && (
-        <form method="post" action="/check-in">
+        <form method="post" action={`/party/${party.token}/check-in`}>
           <button type="submit">{messages.checkInButton}</button>
         </form>
       )}
       {/* A party that finished, left or ran out of time has no place left
           to share. */}
       {!placeGone && <ShareLink link={`${origin}/party/${party.token}`} />}
-      {inQueue && <LeaveControl />}
+      {inQueue && <LeaveControl partyToken={party.token} />}
     </section>
   );
 }
@@ -129,12 +133,12 @@ function clockTime(date: Date, timeZone: string): string {
 // is how a diner stays. A native <details> does this without a page of its
 // own or any script. Last on the card and quiet, so it never competes with
 // the Check-in button.
-function LeaveControl() {
+function LeaveControl({ partyToken }: { partyToken: string }) {
   return (
     <details className="leave">
       <summary>{messages.leave}</summary>
       <p>{messages.leaveWarning}</p>
-      <form method="post" action="/leave">
+      <form method="post" action={`/party/${partyToken}/leave`}>
         {/* TableKit's danger button is outlined in red, not filled: it
             warns, and it stays quieter than the Check-in button. */}
         <button type="submit" data-variant="danger">

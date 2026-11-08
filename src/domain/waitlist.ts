@@ -311,7 +311,15 @@ function readyAt(
   readySince: ReadonlyMap<string, number>,
 ): Party[] {
   const when = new Date(at);
-  const seated = parties.filter((party) => isInService(party, when));
+  // Seated at that moment: checked in by then and not yet finished. A
+  // check-in that came later holds no seats earlier in the replay, or it
+  // would rewrite the past and could bring an expired party back.
+  const seated = parties.filter(
+    (party) =>
+      party.checkedInAt !== undefined &&
+      party.checkedInAt.getTime() <= at &&
+      isInService(party, when),
+  );
   let free = seatCount - totalSize(seated);
   const ready: Party[] = [];
   for (const party of parties) {

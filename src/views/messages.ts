@@ -44,8 +44,6 @@ export const messages = {
     "Share it with the rest of your party, or open it on another device. Anyone with this link can see your place on the waitlist and check in for you.",
   copyLink: "Copy link",
   copiedLink: "Link copied",
-  otherPartyLink:
-    "You're already on the waitlist. To see another party's place, open their link on another phone or browser.",
   errorTitle: "Something went wrong",
   tryAgain: "Try again",
 } as const;
