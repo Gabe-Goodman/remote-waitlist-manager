@@ -10,7 +10,7 @@ Diners at a fully booked restaurant join a virtual waitlist from their phone, se
 browser/                     what runs or applies in the diner's browser, inlined into the page
 ├── page.css                 the page's own CSS: layout rules on top of TableKit
 ├── copyLink.js              the Copy button: copies the party's link to the phone's clipboard
-└── liveCard.js              keeps the card up to date: fetches /card every 2 s and swaps it when it changes
+└── liveCard.js              keeps the card up to date (fetches /card every 2 s, swaps it when it changes) and counts down the time left to check in
 src/                         what runs on the server
 ├── domain/
 │   └── waitlist.ts          rules only (pure functions): validating the join form, joining, no duplicate emails, parties ahead, service time, who is ready (strict order, seats held), the check-in deadline and running out of time, seats available, where each party stands

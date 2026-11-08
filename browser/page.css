@@ -43,6 +43,22 @@ button {
 .secondary {
   color: var(--text-subtle);
 }
+/* The time left to check in, filled in by the page's script: as large as
+   the line above it, since it's what the diner watches. Hidden until it has
+   something to say, so without JavaScript there's no empty gap. */
+.countdown {
+  font: var(--h2);
+  /* Every digit the same width, so the line doesn't wobble as it ticks. */
+  font-variant-numeric: tabular-nums;
+}
+.countdown:empty {
+  display: none;
+}
+/* With JavaScript the countdown says it better than a clock time with
+   seconds; without it, the clock time is all there is. */
+.js .deadline {
+  display: none;
+}
 /* Fields at 16px or more, so phones don't zoom in when one is tapped:
    TableKit's small fields are 14px. */
 input,

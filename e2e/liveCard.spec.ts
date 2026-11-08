@@ -63,3 +63,30 @@ test("shows the Check-in button the moment the table is ready, without a reload"
 
   await other.close();
 });
+
+test("counts down the check-in, then shows the meal is over, without a reload", async ({
+  page,
+}) => {
+  const countdown = page.locator(".countdown");
+
+  await join(page, { name: "Zoe", size: "3" });
+  // The time left replaces the clock time, which is there only for phones
+  // without JavaScript.
+  await expect(countdown).toHaveText(/^\d:\d\d left$/);
+  const first = await countdown.textContent();
+  await expect(countdown).not.toHaveText(first ?? "", { timeout: 3_000 });
+  await expect(page.getByText(/Check in by/)).toBeHidden();
+
+  await page.getByRole("button", { name: "Check in", exact: true }).click();
+  await expect(page.getByText("Enjoy your meal.")).toBeVisible();
+
+  // From here on the page is never reloaded. A party of 3 is served for 9 s.
+  let reloads = 0;
+  page.on("framenavigated", (frame) => {
+    if (frame === page.mainFrame()) reloads++;
+  });
+  await expect(
+    page.getByRole("heading", { name: "Thanks for dining with us." }),
+  ).toBeVisible({ timeout: 15_000 });
+  expect(reloads).toBe(0);
+});

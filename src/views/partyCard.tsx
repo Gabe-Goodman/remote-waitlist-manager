@@ -75,25 +75,42 @@ function StateLine({
     case "waiting":
       return <p className="ahead">{messages.ahead(state.ahead)}</p>;
     case "ready":
-      // The hold as a duration, the way a host would say it, then the
-      // deadline as a clock time, which stays true however long ago the page
-      // loaded. <time> carries the exact deadline in machine form.
+      // The hold as a duration, the way a host would say it. Without
+      // JavaScript the deadline follows as a clock time, which stays true
+      // however long ago the page loaded; with it, the stylesheet hides that
+      // and the page's script ticks the time left below instead. <time>
+      // carries the exact deadline for both.
       return (
-        <p className="ahead">
-          {`${messages.holdFor(checkInWindowMs / 60_000)} ${messages.checkInBy} `}
-          <time dateTime={state.checkInBy.toISOString()}>
-            {clockTime(state.checkInBy, timeZone)}
-          </time>
-          .
-        </p>
+        <>
+          <p className="ahead">
+            {`${messages.holdFor(checkInWindowMs / 60_000)} `}
+            <span className="deadline">
+              {`${messages.checkInBy} `}
+              <time dateTime={state.checkInBy.toISOString()}>
+                {clockTime(state.checkInBy, timeZone)}
+              </time>
+              .
+            </span>
+          </p>
+          <Countdown />
+        </>
       );
     case "in-service":
+      // No clock on the meal: the service is timed on the server, and the
+      // card turns to "Thanks" on its own when it ends.
       return <p className="ahead">{messages.enjoyMeal}</p>;
     case "done":
     case "left":
     case "expired":
       return null;
   }
+}
+
+// Where the page's script shows the time left to check in ("0:42 left"),
+// counted down to the <time> above it. Empty in the HTML, and hidden while
+// empty, so without JavaScript there is no gap and nothing that never changes.
+function Countdown() {
+  return <p className="countdown" />;
 }
 
 // 24-hour "18:02:37" in the restaurant's time zone, whatever the server's
