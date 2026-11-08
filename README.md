@@ -9,7 +9,7 @@ Diners at a fully booked restaurant join a virtual waitlist from their phone, se
 ```
 src/
 ├── domain/
-│   └── waitlist.ts          rules only (pure functions): validating the join form, joining, no duplicate emails, counting parties ahead
+│   └── waitlist.ts          rules only (pure functions): validating the join form, joining, no duplicate emails, parties ahead, service time, who is ready (strict order, seats held), seats available, where each party stands
 ├── services/
 │   └── waitlistService.ts   use cases: load, apply a rule, save only if nobody saved in between, retry on conflict
 ├── storage/
