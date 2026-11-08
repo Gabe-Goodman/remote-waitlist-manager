@@ -2,13 +2,14 @@
 // between, retry on conflict. No HTTP and no MongoDB queries here.
 import { setTimeout as sleep } from "node:timers/promises";
 import {
+  checkIn,
   join,
   partiesWaiting,
-  partyPlace,
+  partyState,
   type FieldErrors,
   type JoinForm,
   type Party,
-  type PartyPlace,
+  type PartyState,
 } from "../domain/waitlist.js";
 import type { WaitlistStore } from "../storage/waitlistStore.js";
 
@@ -20,6 +21,13 @@ export type JoinOutcome =
   | { ok: false; reason: "invalid"; errors: FieldErrors }
   | { ok: false; reason: "duplicate" }
   | { ok: false; reason: "busy" };
+
+export type CheckInOutcome =
+  | { ok: true; party: Party }
+  | {
+      ok: false;
+      reason: "not-found" | "not-ready" | "already-checked-in" | "busy";
+    };
 
 /**
  * Runs `attempt` (one load → rule → save) until it doesn't conflict, at most
@@ -40,8 +48,8 @@ export async function retryOnConflict<T>(
   return "busy";
 }
 
-// Enough for a burst of simultaneous joins; past it, the join ends as busy
-// rather than retrying forever.
+// Enough for a burst of simultaneous joins or check-ins; past it, the
+// request ends as busy rather than retrying forever.
 const maxAttempts = 10;
 
 /**
@@ -67,13 +75,39 @@ export async function joinWaitlist(
   return outcome === "busy" ? { ok: false, reason: "busy" } : outcome;
 }
 
-/** The party with this token and its place in the queue, if it's there. */
+/**
+ * Checks the party in. Each attempt reloads and re-runs the rule, so "ready
+ * right now?" is decided on the waitlist the save replaces: two check-ins at
+ * the same moment can't both take the same seats.
+ */
+export async function checkInParty(
+  store: WaitlistStore,
+  env: Environment,
+  token: string,
+): Promise<CheckInOutcome> {
+  const outcome = await retryOnConflict(async () => {
+    const { waitlist, version } = await store.load();
+    const result = checkIn(waitlist, token, env.now());
+    if (!result.ok) return result;
+
+    const saved = await store.saveIfVersion(result.waitlist, version);
+    if (saved === "conflict") return "conflict";
+    return { ok: true as const, party: result.party };
+  }, maxAttempts);
+
+  return outcome === "busy" ? { ok: false, reason: "busy" } : outcome;
+}
+
+/** The party with this token and where it stands right now, if it's there. */
 export async function findParty(
   store: WaitlistStore,
+  env: Environment,
   token: string,
-): Promise<PartyPlace | undefined> {
+): Promise<{ party: Party; state: PartyState } | undefined> {
   const { waitlist } = await store.load();
-  return partyPlace(waitlist, token);
+  const party = waitlist.parties.find((p) => p.token === token);
+  const state = partyState(waitlist, token, env.now());
+  return party && state ? { party, state } : undefined;
 }
 
 /** How many parties are waiting: what a newcomer would have ahead of them. */

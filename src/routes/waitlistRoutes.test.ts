@@ -1,5 +1,6 @@
 // The pages and form posts, through request() against the real MongoDB from
-// Compose, one fresh collection per test. The clock and tokens are fixed.
+// Compose, one fresh collection per test. The clock and tokens are fixed,
+// except where a test moves its own clock forward.
 import { readFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { Hono } from "hono";
@@ -22,6 +23,17 @@ const env = {
   now: () => new Date("2026-11-07T18:00:00Z"),
   newToken: () => `token-${++tokens}`,
 };
+
+/** An Environment whose clock the test moves forward by hand. */
+function movableClock() {
+  let now = env.now();
+  return {
+    env: { ...env, now: () => now },
+    advance(ms: number) {
+      now = new Date(now.getTime() + ms);
+    },
+  };
+}
 
 async function emptyStore() {
   const store = waitlistStore(freshCollection<WaitlistDocument>());
@@ -293,7 +305,12 @@ function partyCookie(response: Response): string {
 describe("your place in the queue", () => {
   test("shows your place after joining", async () => {
     const app = await routes();
-    await postJoin(app, { ...ana, name: "Ben", email: "ben@example.com" });
+    // Ben's 9 seats leave too few for Ana, so she waits behind him.
+    await postJoin(app, {
+      name: "Ben",
+      email: "ben@example.com",
+      size: "9",
+    });
     const joined = await postJoin(app, ana);
 
     const response = await app.request("/", {
@@ -427,7 +444,7 @@ describe("the party's link", () => {
       '<label for="party-link">Your party&#x27;s link</label>',
     );
     expect(card).toContain(
-      '<p id="party-link-hint" class="secondary">Share it with the rest of your party, or open it on another device. Anyone with this link can see your place on the waitlist.</p>',
+      '<p id="party-link-hint" class="secondary">Share it with the rest of your party, or open it on another device. Anyone with this link can see your place on the waitlist and check in for you.</p>',
     );
     expect(card).not.toContain("sms:");
     expect(card).not.toContain("mailto:");
@@ -451,6 +468,156 @@ describe("the party's link", () => {
     );
     expect(card).toMatch(/<script>[\s\S]*copy-link[\s\S]*<\/script>/);
     expect(joinForm).not.toContain("<script");
+  });
+});
+
+describe("checking in", () => {
+  /** Posts the card's Check-in button, the way a browser does. */
+  function postCheckIn(app: Hono, cookie?: string) {
+    return app.request("/check-in", {
+      method: "POST",
+      headers: cookie ? { Cookie: cookie } : {},
+    });
+  }
+
+  async function cardHtml(app: Hono, cookie: string): Promise<string> {
+    return (await app.request("/", { headers: { Cookie: cookie } })).text();
+  }
+
+  test("shows a party whose table is ready the Check-in button", async () => {
+    const app = await routes();
+    const anasCookie = partyCookie(await postJoin(app, ana));
+
+    const html = await cardHtml(app, anasCookie);
+
+    expect(html).toContain("<title>Your table is ready!</title>");
+    expect(html).toContain("<h1>Your table is ready!</h1>");
+    expect(html).toContain("Check in now.");
+    expect(html).toContain("Ana, party of 2");
+    expect(html).toContain(
+      '<form action="/check-in" method="post"><button type="submit">Check in</button></form>',
+    );
+  });
+
+  test("tells the party at the front that it's next", async () => {
+    const app = await routes();
+    const anasCookie = partyCookie(await postJoin(app, { ...ana, size: "6" }));
+    await postCheckIn(app, anasCookie);
+    // Ana's 6 seats are in service, so Ben's 5 don't fit: he waits, first.
+    const bensCookie = partyCookie(
+      await postJoin(app, { name: "Ben", email: "ben@example.com", size: "5" }),
+    );
+
+    const html = await cardHtml(app, bensCookie);
+
+    expect(html).toContain("<h1>You&#x27;re on the waitlist</h1>");
+    expect(html).toContain(
+      "You&#x27;re next. Stay close and keep this page open.",
+    );
+    expect(html).not.toContain("ahead of you");
+    expect(html).not.toContain('action="/check-in"');
+  });
+
+  test("checks in from the card and shows the party as checked in", async () => {
+    const app = await routes();
+    const anasCookie = partyCookie(await postJoin(app, ana));
+
+    const response = await postCheckIn(app, anasCookie);
+
+    expect(response.status).toBe(303);
+    expect(response.headers.get("Location")).toBe("/");
+    const html = await cardHtml(app, anasCookie);
+    expect(html).toContain("<title>You&#x27;re checked in.</title>");
+    expect(html).toContain("<h1>You&#x27;re checked in.</h1>");
+    expect(html).toContain("Enjoy your meal.");
+    expect(html).toContain("Ana, party of 2");
+    expect(html).not.toContain('action="/check-in"');
+  });
+
+  test("sends a second check-in to the checked-in card", async () => {
+    const app = await routes();
+    const anasCookie = partyCookie(await postJoin(app, ana));
+
+    const first = await postCheckIn(app, anasCookie);
+    const second = await postCheckIn(app, anasCookie);
+
+    for (const response of [first, second]) {
+      expect(response.status).toBe(303);
+      expect(response.headers.get("Location")).toBe("/");
+    }
+    expect(await cardHtml(app, anasCookie)).toContain(
+      "<h1>You&#x27;re checked in.</h1>",
+    );
+  });
+
+  test("sends a check-in without a party to the join form", async () => {
+    const store = await emptyStore();
+    const app = waitlistRoutes(store, env);
+
+    const noCookie = await postCheckIn(app);
+    const unknownCookie = await postCheckIn(app, "party=gone");
+
+    for (const response of [noCookie, unknownCookie]) {
+      expect(response.status).toBe(303);
+      expect(response.headers.get("Location")).toBe("/");
+    }
+    expect((await store.load()).waitlist.parties).toEqual([]);
+  });
+
+  test("says thanks once the meal is over, without the party's link", async () => {
+    const clock = movableClock();
+    const app = waitlistRoutes(await emptyStore(), clock.env);
+    const anasCookie = partyCookie(await postJoin(app, ana));
+    await postCheckIn(app, anasCookie);
+
+    // A party of 2 is served for 2 × 3 seconds.
+    clock.advance(6000);
+    const html = await cardHtml(app, anasCookie);
+
+    expect(html).toContain("<title>Thanks for dining with us.</title>");
+    expect(html).toContain("<h1>Thanks for dining with us.</h1>");
+    expect(html).toContain("Ana, party of 2");
+    expect(html).not.toContain('id="party-link"');
+  });
+
+  test("lets a browser whose party has finished join again", async () => {
+    const clock = movableClock();
+    const app = waitlistRoutes(await emptyStore(), clock.env);
+    const anasCookie = partyCookie(await postJoin(app, ana));
+    await postCheckIn(app, anasCookie);
+    clock.advance(6000);
+
+    const response = await postJoin(
+      app,
+      { ...ana, email: "ana.again@example.com" },
+      "http://localhost/parties",
+      { Cookie: anasCookie },
+    );
+
+    expect(response.status).toBe(303);
+    const newCookie = partyCookie(response);
+    expect(newCookie).toMatch(/^party=.+/);
+    expect(newCookie).not.toBe(anasCookie);
+  });
+
+  test("lets a finished party's browser open another party's link", async () => {
+    const clock = movableClock();
+    const app = waitlistRoutes(await emptyStore(), clock.env);
+    const anasCookie = partyCookie(await postJoin(app, ana));
+    await postCheckIn(app, anasCookie);
+    const bensCookie = partyCookie(
+      await postJoin(app, { name: "Ben", email: "ben@example.com", size: "2" }),
+    );
+    clock.advance(6000);
+
+    const opened = await app.request(
+      `/party/${bensCookie.replace("party=", "")}`,
+      { headers: { Cookie: anasCookie } },
+    );
+
+    expect(opened.status).toBe(303);
+    expect(opened.headers.get("Location")).toBe("/");
+    expect(partyCookie(opened)).toBe(bensCookie);
   });
 });
 

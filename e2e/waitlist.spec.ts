@@ -7,10 +7,14 @@ import {
   type Page,
 } from "@playwright/test";
 
-// The Compose database outlives each run, so every run needs a new email.
+// The journeys share one restaurant, so every party needs its own email.
 function uniqueEmail(name: string): string {
   return `${name}-${Date.now()}@example.com`;
 }
+
+// A party joining an empty restaurant is ready at once; behind others, it
+// waits. The journeys share one restaurant, so either can happen.
+const cardHeading = /^(You're on the waitlist|Your table is ready!)$/;
 
 async function fillJoinForm(
   page: Page,
@@ -39,12 +43,12 @@ test("joins the waitlist, lands on the party's page and stays there after a relo
   });
 
   await expect(page).toHaveURL("/");
-  await expect(
-    page.getByRole("heading", { name: "You're on the waitlist" }),
-  ).toBeVisible();
+  await expect(page.getByRole("heading", { name: cardHeading })).toBeVisible();
   await expect(page.getByText("Ana, party of 2")).toBeVisible();
   await expect(
-    page.getByText(/^(No parties|\d+ part(y|ies)) ahead of you\.$/),
+    page.getByText(
+      /^(You're next\. Stay close and keep this page open\.|\d+ part(y|ies) ahead of you\.|Check in now\.)$/,
+    ),
   ).toBeVisible();
   // Without JavaScript the Copy button would do nothing, so it stays hidden.
   await expect(page.locator("#copy-link")).toBeHidden();
@@ -52,9 +56,7 @@ test("joins the waitlist, lands on the party's page and stays there after a relo
   await page.reload();
 
   // The same party came back, not just any card.
-  await expect(
-    page.getByRole("heading", { name: "You're on the waitlist" }),
-  ).toBeVisible();
+  await expect(page.getByRole("heading", { name: cardHeading })).toBeVisible();
   await expect(page.getByText("Ana, party of 2")).toBeVisible();
 });
 
@@ -79,7 +81,7 @@ test("views the party from another browser session", async ({
   await otherPage.goto(link);
 
   await expect(
-    otherPage.getByRole("heading", { name: "You're on the waitlist" }),
+    otherPage.getByRole("heading", { name: cardHeading }),
   ).toBeVisible();
   await expect(otherPage.getByText("Bea, party of 3")).toBeVisible();
 

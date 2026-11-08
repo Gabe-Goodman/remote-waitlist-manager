@@ -9,7 +9,7 @@ test.use({
 });
 
 test("copies the party's link with one tap", async ({ page }) => {
-  // The Compose database outlives each run, so every run needs a new email.
+  // The journeys share one restaurant, so every party needs its own email.
   const email = `cleo-${Date.now()}@example.com`;
 
   await page.goto("/");

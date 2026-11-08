@@ -1,13 +1,19 @@
-// The use cases. The retry loop runs with a plain stub; joining runs
-// against the real MongoDB from Compose, one fresh collection per test.
+// The use cases. The retry loop runs with a plain stub; joining and
+// checking in run against the real MongoDB from Compose, one fresh
+// collection per test.
 import { randomUUID } from "node:crypto";
 import { describe, expect, test } from "vitest";
 import { freshCollection } from "../storage/testDb.js";
 import {
   waitlistStore,
   type WaitlistDocument,
+  type WaitlistStore,
 } from "../storage/waitlistStore.js";
-import { joinWaitlist, retryOnConflict } from "./waitlistService.js";
+import {
+  checkInParty,
+  joinWaitlist,
+  retryOnConflict,
+} from "./waitlistService.js";
 
 describe("retrying a save that conflicted", () => {
   test("succeeds on the next attempt after one conflict", async () => {
@@ -128,5 +134,99 @@ describe("joining the waitlist", () => {
     expect(outcomes).toContainEqual({ ok: false, reason: "duplicate" });
     const { waitlist } = await store.load();
     expect(waitlist.parties).toHaveLength(1);
+  });
+});
+
+async function joined(store: WaitlistStore, name: string, size: number) {
+  const outcome = await joinWaitlist(store, env, {
+    name,
+    email: `${name.toLowerCase()}@example.com`,
+    size: String(size),
+  });
+  if (!outcome.ok) throw new Error(`join refused: ${JSON.stringify(outcome)}`);
+  return outcome.party;
+}
+
+describe("checking in", () => {
+  test("checks in a ready party and saves it", async () => {
+    const store = await emptyStore();
+    const ana = await joined(store, "Ana", 2);
+
+    const outcome = await checkInParty(store, env, ana.token);
+
+    expect(outcome).toEqual({
+      ok: true,
+      party: { ...ana, checkedInAt: env.now() },
+    });
+    const { waitlist } = await store.load();
+    expect(waitlist.parties[0]?.checkedInAt).toEqual(env.now());
+  });
+
+  test("refuses a party that isn't ready, without saving anything", async () => {
+    const store = await emptyStore();
+    await joined(store, "Ana", 8);
+    const ben = await joined(store, "Ben", 3);
+    const before = await store.load();
+
+    const outcome = await checkInParty(store, env, ben.token);
+
+    expect(outcome).toEqual({ ok: false, reason: "not-ready" });
+    expect(await store.load()).toEqual(before);
+  });
+
+  test("refuses a second check-in for the same party", async () => {
+    const store = await emptyStore();
+    const ana = await joined(store, "Ana", 2);
+    await checkInParty(store, env, ana.token);
+
+    const outcome = await checkInParty(store, env, ana.token);
+
+    expect(outcome).toEqual({ ok: false, reason: "already-checked-in" });
+  });
+
+  test("refuses a token that isn't on the waitlist", async () => {
+    const store = await emptyStore();
+    await joined(store, "Ana", 2);
+
+    const outcome = await checkInParty(store, env, "no-such-token");
+
+    expect(outcome).toEqual({ ok: false, reason: "not-found" });
+  });
+
+  test("checks in five ready parties checking in at once: all saved, none busy", async () => {
+    const store = await emptyStore();
+    const parties = [];
+    for (const name of ["Ana", "Ben", "Cy", "Dee", "Eve"]) {
+      parties.push(await joined(store, name, 2));
+    }
+
+    const outcomes = await Promise.all(
+      parties.map((party) => checkInParty(store, env, party.token)),
+    );
+
+    expect(outcomes.filter((outcome) => !outcome.ok)).toEqual([]);
+    const { waitlist } = await store.load();
+    expect(waitlist.parties.map((party) => party.checkedInAt)).toEqual(
+      parties.map(() => env.now()),
+    );
+  });
+
+  test("checks in a party only once when it checks in twice at once", async () => {
+    const store = await emptyStore();
+    const ana = await joined(store, "Ana", 2);
+
+    const outcomes = await Promise.all([
+      checkInParty(store, env, ana.token),
+      checkInParty(store, env, ana.token),
+    ]);
+
+    expect(outcomes.map((outcome) => outcome.ok).toSorted()).toEqual([
+      false,
+      true,
+    ]);
+    expect(outcomes).toContainEqual({
+      ok: false,
+      reason: "already-checked-in",
+    });
   });
 });
