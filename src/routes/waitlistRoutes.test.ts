@@ -1,5 +1,7 @@
 // The pages and form posts, through request() against the real MongoDB from
 // Compose, one fresh collection per test. The clock and tokens are fixed.
+import { readFileSync } from "node:fs";
+import { createRequire } from "node:module";
 import { Hono } from "hono";
 import { afterEach, describe, expect, test, vi } from "vitest";
 import {
@@ -49,6 +51,27 @@ function postJoin(
 }
 
 const ana = { name: "Ana", email: "ana@example.com", size: "2" };
+
+// Some tests silence the expected server-side error log; put it back after
+// every test, whether it passed or not.
+afterEach(() => {
+  vi.restoreAllMocks();
+});
+
+// Ten conflicts in a row can't be produced on demand with real MongoDB, so
+// only the save is replaced; loading still reads the real waitlist.
+function withSavesAlwaysConflicting(store: WaitlistStore): WaitlistStore {
+  return { ...store, saveIfVersion: () => Promise.resolve("conflict") };
+}
+
+// A database error can't be produced on demand with a healthy MongoDB, so
+// only loading is replaced, and it fails the way a dropped connection does.
+function withLoadFailing(store: WaitlistStore): WaitlistStore {
+  return {
+    ...store,
+    load: () => Promise.reject(new Error("connection to MongoDB lost")),
+  };
+}
 
 /** The opening tag of the element with this id. */
 function tagWithId(html: string, id: string): string {
@@ -229,6 +252,7 @@ describe("your place in the queue", () => {
     const html = await response.text();
     expect(html).toContain("Ana");
     expect(html).toContain("1 party ahead of you");
+    expect(html).toContain("Ana, party of 2");
     expect(html).not.toMatch(/<form [^>]*action="\/parties"/);
   });
 
@@ -282,12 +306,6 @@ describe("the waiting count before joining", () => {
 });
 
 describe("when joining can't go through", () => {
-  // Ten conflicts in a row can't be produced on demand with real MongoDB,
-  // so only the save is replaced; loading still reads the real waitlist.
-  function withSavesAlwaysConflicting(store: WaitlistStore): WaitlistStore {
-    return { ...store, saveIfVersion: () => Promise.resolve("conflict") };
-  }
-
   test("asks the diner to tap Join again when the waitlist is busy, keeping what they typed", async () => {
     const app = waitlistRoutes(
       withSavesAlwaysConflicting(await emptyStore()),
@@ -307,20 +325,6 @@ describe("when joining can't go through", () => {
 });
 
 describe("when something goes wrong", () => {
-  // The tests silence the server-side log of the error; put it back after.
-  afterEach(() => {
-    vi.restoreAllMocks();
-  });
-
-  // A database error can't be produced on demand with a healthy MongoDB, so
-  // only loading is replaced, and it fails the way a dropped connection does.
-  function withLoadFailing(store: WaitlistStore): WaitlistStore {
-    return {
-      ...store,
-      load: () => Promise.reject(new Error("connection to MongoDB lost")),
-    };
-  }
-
   test("shows a friendly page when the database fails, without the error's details", async () => {
     const log = vi.spyOn(console, "error").mockImplementation(() => {});
     const app = waitlistRoutes(withLoadFailing(await emptyStore()), env);
@@ -392,5 +396,103 @@ describe("oversized form posts", () => {
     );
 
     expect(response.status).toBe(413);
+  });
+});
+
+describe("styling", () => {
+  test("carries TableKit's stylesheet in every page", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    const tablekitCss = readFileSync(
+      createRequire(import.meta.url).resolve(
+        "@tablecheck/tablekit-css/tablekit.classless.min.css",
+      ),
+      "utf8",
+    );
+    const app = await routes();
+    const joined = await postJoin(app, ana);
+    const failing = waitlistRoutes(withLoadFailing(await emptyStore()), env);
+
+    const pages = {
+      "join form": await app.request("/"),
+      "refused join": await postJoin(app, { ...ana, email: "nope" }),
+      "party card": await app.request("/", {
+        headers: { Cookie: partyCookie(joined) },
+      }),
+      "error page": await failing.request("/"),
+    };
+
+    for (const [page, response] of Object.entries(pages)) {
+      // includes() rather than toContain(): a failure would print all 115 KB.
+      const html = await response.text();
+      expect(html.includes(`<style>${tablekitCss}</style>`), page).toBe(true);
+    }
+  });
+
+  test("marks each invalid field for screen readers and for TableKit", async () => {
+    const response = await postJoin(await routes(), {
+      name: "Ana",
+      email: "nope",
+    });
+
+    const html = await response.text();
+    for (const field of ["email", "size"]) {
+      const tag = tagWithId(html, field);
+      expect(tag, field).toContain('aria-invalid="true"');
+      expect(tag, field).toContain('data-variant="error"');
+    }
+    expect(tagWithId(html, "name")).not.toContain("aria-invalid");
+    expect(tagWithId(html, "name")).not.toContain("data-variant");
+  });
+
+  test("shows each field's error as text under the field, not a box", async () => {
+    const response = await postJoin(await routes(), { ...ana, email: "nope" });
+
+    expect(tagWithId(await response.text(), "email-error")).toBe(
+      '<p id="email-error" class="field-error">',
+    );
+  });
+
+  test("shows the notice in a TableKit alert: error, or warning when busy", async () => {
+    const store = await emptyStore();
+    const app = waitlistRoutes(store, env);
+    await postJoin(app, ana);
+    const busy = waitlistRoutes(withSavesAlwaysConflicting(store), env);
+
+    const notices = {
+      error: await postJoin(app, { ...ana, name: "" }),
+      duplicate: await postJoin(app, ana),
+      busy: await postJoin(busy, { ...ana, email: "ben@example.com" }),
+    };
+
+    const variant = async (response: Response) =>
+      (await response.text()).match(
+        /<div role="alert" class="alert" data-variant="([a-z]+)"/,
+      )?.[1];
+    expect(await variant(notices.error)).toBe("error");
+    expect(await variant(notices.duplicate)).toBe("error");
+    expect(await variant(notices.busy)).toBe("warning");
+  });
+});
+
+describe("compression", () => {
+  test("sends pages gzipped when the browser accepts it", async () => {
+    const app = await routes();
+
+    const response = await app.request("/", {
+      headers: { "Accept-Encoding": "gzip" },
+    });
+
+    expect(response.headers.get("Content-Encoding")).toBe("gzip");
+    const unzipped = response.body?.pipeThrough(
+      new DecompressionStream("gzip"),
+    );
+    expect(await new Response(unzipped).text()).toMatch(/^<!DOCTYPE html>/);
+  });
+
+  test("sends pages uncompressed when the browser doesn't accept gzip", async () => {
+    const response = await (await routes()).request("/");
+
+    expect(response.headers.get("Content-Encoding")).toBeNull();
+    expect(await response.text()).toMatch(/^<!DOCTYPE html>/);
   });
 });

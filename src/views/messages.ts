@@ -22,7 +22,7 @@ export const messages = {
         ? "1 party is waiting."
         : `${count} parties are waiting.`,
   onWaitlistTitle: "You're on the waitlist",
-  partyOf: (size: number) => `Party of ${size}`,
+  partyLine: (name: string, size: number) => `${name}, party of ${size}`,
   ahead: (count: number) =>
     count === 0
       ? "No parties ahead of you."

@@ -2,6 +2,7 @@
 // cases in services/; this file reads requests and picks the response.
 import { Hono } from "hono";
 import { bodyLimit } from "hono/body-limit";
+import { compress } from "hono/compress";
 import { deleteCookie, getCookie, setCookie } from "hono/cookie";
 import { HTTPException } from "hono/http-exception";
 import type { JoinForm } from "../domain/waitlist.js";
@@ -19,9 +20,14 @@ import { WaitlistPage } from "../views/waitlistPage.js";
 export function waitlistRoutes(store: WaitlistStore, env: Environment): Hono {
   const routes = new Hono();
 
-  // Registered first, so every POST route below it, now and later, refuses
-  // bodies over 10 KB, so no route reads more than that. The largest valid
-  // join form is 726 bytes, so anything bigger didn't come from the form.
+  // Every page carries TableKit's 115 KB stylesheet; gzipped it's about
+  // 15 KB, which matters on a slow phone connection.
+  routes.use("*", compress());
+
+  // Registered before the routes, so every POST route below it, now and
+  // later, refuses bodies over 10 KB, so no route reads more than that. The
+  // largest valid join form is 726 bytes, so anything bigger didn't come
+  // from the form.
   routes.post("*", bodyLimit({ maxSize: 10 * 1024 }));
 
   routes.get("/", async (c) => {
