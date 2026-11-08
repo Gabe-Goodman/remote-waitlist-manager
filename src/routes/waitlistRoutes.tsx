@@ -1,6 +1,6 @@
 // HTTP only: every URL the app answers. The rules live in domain/, the use
 // cases in services/; this file reads requests and picks the response.
-import { Hono } from "hono";
+import { Hono, type Context } from "hono";
 import { bodyLimit } from "hono/body-limit";
 import { compress } from "hono/compress";
 import { deleteCookie, getCookie, setCookie } from "hono/cookie";
@@ -30,10 +30,24 @@ export function waitlistRoutes(store: WaitlistStore, env: Environment): Hono {
   // from the form.
   routes.post("*", bodyLimit({ maxSize: 10 * 1024 }));
 
+  // A page shows the party's state when it was rendered, so a kept copy
+  // (back button, restored tab) can show a state that's no longer true, such
+  // as the join form after joining. no-store makes the browser ask again.
+  // GETs only: on a refused join's page, Chrome's back button would ask to
+  // resubmit the form.
+  routes.get("*", async (c, next) => {
+    await next();
+    c.header("Cache-Control", "no-store");
+  });
+
   routes.get("/", async (c) => {
     const token = getCookie(c, "party");
     const place = token ? await findParty(store, token) : undefined;
-    if (place) return c.html(toHtml(<WaitlistPage place={place} />));
+    if (place) {
+      return c.html(
+        toHtml(<WaitlistPage place={place} origin={siteOrigin(c)} />),
+      );
+    }
     // A cookie for a party that isn't on the waitlist is dead: clear it, so
     // the browser stops sending it, and show the join form.
     if (token) deleteCookie(c, "party", { path: "/" });
@@ -42,19 +56,16 @@ export function waitlistRoutes(store: WaitlistStore, env: Environment): Hono {
   });
 
   routes.post("/parties", async (c) => {
+    // One active party per browser. A stale form (back button, old tab) must
+    // neither change the party's details nor add a second place in the
+    // queue; someone joining for another group uses another phone. The
+    // diner goes back to their card, which shows the party they hold.
+    const own = getCookie(c, "party");
+    if (own && (await findParty(store, own))) return c.redirect("/", 303);
     const form = await readJoinForm(c.req.parseBody());
     const outcome = await joinWaitlist(store, env, form);
     if (outcome.ok) {
-      // HttpOnly: page scripts can't read the token. SameSite=Lax: other
-      // sites can't post with it. Secure over HTTPS. Six hours outlasts any
-      // wait for a table.
-      setCookie(c, "party", outcome.party.token, {
-        httpOnly: true,
-        sameSite: "Lax",
-        secure: new URL(c.req.url).protocol === "https:",
-        maxAge: 6 * 60 * 60,
-        path: "/",
-      });
+      rememberParty(c, outcome.party.token);
       // Post/Redirect/Get: 303 sends the browser to / with a GET, so a reload
       // or the back button never submits the form a second time.
       return c.redirect("/", 303);
@@ -82,6 +93,35 @@ export function waitlistRoutes(store: WaitlistStore, env: Environment): Hono {
     );
   });
 
+  // The token is 128 random bits, so the link is the key to the party:
+  // whoever has it can act for the party, which is how a group shares one.
+  // It never replaces this browser's own party: opening a friend's link
+  // mustn't lose your own place. Instead of quietly redirecting, the diner
+  // who tapped the link is told why they see their own party, not the one
+  // they opened. The page is answered at the link's URL, so no flag or
+  // extra cookie carries the notice, and a reload repeats a harmless GET.
+  routes.get("/party/:token", async (c) => {
+    const own = getCookie(c, "party");
+    const token = c.req.param("token");
+    const ownPlace =
+      own !== undefined && own !== token
+        ? await findParty(store, own)
+        : undefined;
+    if (ownPlace) {
+      return c.html(
+        toHtml(
+          <WaitlistPage
+            place={ownPlace}
+            origin={siteOrigin(c)}
+            notice="other-party"
+          />,
+        ),
+      );
+    }
+    if (await findParty(store, token)) rememberParty(c, token);
+    return c.redirect("/", 303);
+  });
+
   // Any error a route throws (a database outage, a bug) ends here: the
   // details go to the server log, the diner gets a plain page with a Try
   // again link.
@@ -101,6 +141,25 @@ export function waitlistRoutes(store: WaitlistStore, env: Environment): Hono {
   });
 
   return routes;
+}
+
+// The site's address as this request reached it, so a shared link points
+// wherever the diner found the app.
+function siteOrigin(c: Context): string {
+  return new URL(c.req.url).origin;
+}
+
+// HttpOnly: page scripts can't read the token. SameSite=Lax: other sites
+// can't post with it. Secure over HTTPS. Six hours outlasts any wait for a
+// table.
+function rememberParty(c: Context, token: string): void {
+  setCookie(c, "party", token, {
+    httpOnly: true,
+    sameSite: "Lax",
+    secure: new URL(c.req.url).protocol === "https:",
+    maxAge: 6 * 60 * 60,
+    path: "/",
+  });
 }
 
 /**
