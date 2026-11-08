@@ -14,11 +14,6 @@ import {
 
 const port = Number(process.env.PORT ?? 3000);
 const mongoUrl = process.env.MONGO_URL ?? "mongodb://127.0.0.1:27017/waitlist";
-// The check-in deadline is shown in the restaurant's time, not the server's.
-const timeZone = process.env.RESTAURANT_TIME_ZONE ?? "Asia/Tokyo";
-// Throws on an unknown zone, so a typo stops the app at startup instead of
-// breaking every ready card.
-new Intl.DateTimeFormat("en-GB", { timeZone });
 
 // Without this, a page waits about 30 s (the driver's default) before the
 // error page appears when MongoDB is down; 5 s is long enough for a healthy
@@ -40,7 +35,7 @@ const env = {
 };
 
 const app = new Hono();
-app.route("/", waitlistRoutes(waitlistService(store, env), timeZone));
+app.route("/", waitlistRoutes(waitlistService(store, env)));
 
 const server = serve({ fetch: app.fetch, port }, (info) => {
   console.log(`Listening on http://localhost:${info.port}`);

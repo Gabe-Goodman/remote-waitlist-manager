@@ -9,7 +9,7 @@ import {
   type Page,
 } from "@playwright/test";
 
-async function join(
+async function joinAsDiner(
   page: Page,
   { name, size }: { name: string; size: string },
 ): Promise<void> {
@@ -39,7 +39,7 @@ test("lets the next party check in once a service ends, and the first join again
     p.getByRole("button", { name: "Check in", exact: true });
 
   // A party of 1 is served for 3 seconds, so the test waits only briefly.
-  await join(page, { name: "Ana", size: "1" });
+  await joinAsDiner(page, { name: "Ana", size: "1" });
   await expect(heading(page, "Your table is ready!")).toBeVisible();
   await expect(checkInButton(page)).toBeVisible();
 
@@ -50,7 +50,7 @@ test("lets the next party check in once a service ends, and the first join again
     test.info().project.use as BrowserContextOptions,
   );
   const otherPage = await other.newPage();
-  await join(otherPage, { name: "Ben", size: "10" });
+  await joinAsDiner(otherPage, { name: "Ben", size: "10" });
   await expect(heading(otherPage, "You're on the waitlist")).toBeVisible();
   // Ana is ready but hasn't checked in, so she's still ahead in the queue.
   await expect(otherPage.getByText("1 party ahead of you.")).toBeVisible();

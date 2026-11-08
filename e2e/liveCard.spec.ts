@@ -10,7 +10,7 @@ import {
 
 test.use({ javaScriptEnabled: true });
 
-async function join(
+async function joinAsDiner(
   page: Page,
   { name, size }: { name: string; size: string },
 ): Promise<void> {
@@ -30,7 +30,7 @@ test("shows the Check-in button the moment the table is ready, without a reload"
   const checkInButton = (p: Page) =>
     p.getByRole("button", { name: "Check in", exact: true });
 
-  await join(page, { name: "Lia", size: "1" });
+  await joinAsDiner(page, { name: "Lia", size: "1" });
   await expect(checkInButton(page)).toBeVisible();
 
   // Another phone: a party of 10 waits behind the seat Lia holds.
@@ -40,7 +40,7 @@ test("shows the Check-in button the moment the table is ready, without a reload"
     javaScriptEnabled: true,
   });
   const otherPage = await other.newPage();
-  await join(otherPage, { name: "Max", size: "10" });
+  await joinAsDiner(otherPage, { name: "Max", size: "10" });
   await expect(otherPage.getByText("1 party ahead of you.")).toBeVisible();
 
   // From here on Max's page is never reloaded: every change comes from the
@@ -62,31 +62,4 @@ test("shows the Check-in button the moment the table is ready, without a reload"
   await expect(heading(otherPage, "You've left the waitlist.")).toBeVisible();
 
   await other.close();
-});
-
-test("counts down the check-in, then shows the meal is over, without a reload", async ({
-  page,
-}) => {
-  const countdown = page.locator(".countdown");
-
-  await join(page, { name: "Zoe", size: "3" });
-  // The time left replaces the clock time, which is there only for phones
-  // without JavaScript.
-  await expect(countdown).toHaveText(/^\d:\d\d left$/);
-  const first = await countdown.textContent();
-  await expect(countdown).not.toHaveText(first ?? "", { timeout: 3_000 });
-  await expect(page.getByText(/Check in by/)).toBeHidden();
-
-  await page.getByRole("button", { name: "Check in", exact: true }).click();
-  await expect(page.getByText("Enjoy your meal.")).toBeVisible();
-
-  // From here on the page is never reloaded. A party of 3 is served for 9 s.
-  let reloads = 0;
-  page.on("framenavigated", (frame) => {
-    if (frame === page.mainFrame()) reloads++;
-  });
-  await expect(
-    page.getByRole("heading", { name: "Thanks for dining with us." }),
-  ).toBeVisible({ timeout: 15_000 });
-  expect(reloads).toBe(0);
 });

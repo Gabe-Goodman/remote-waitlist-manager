@@ -6,20 +6,14 @@
 // The loop: every 2 seconds, fetch the card from <page>/card, one request at a
 // time. If it changed, put the new card on screen. If the fetch fails, keep
 // the card already shown. When the page becomes visible again (a phone taken
-// out of a pocket), fetch at once. Once the card can't change any more (done,
-// left or out of time), stop.
-//
-// The countdown: every second, show the time left to check in ("0:42 left")
-// until the deadline in the card's <time>. At 0:00, fetch the card at once
-// rather than waiting for the next poll.
+// out of a pocket), fetch at once. Once the card can't change any more (done
+// or left), stop.
 (() => {
   /** @type {ReturnType<typeof setTimeout> | undefined} */
   let timer;
   let fetching = false;
-  // The deadline already refetched for at 0:00, so it happens once.
-  let refetchedFor = "";
   // These cards stay as they are: nothing left to poll for.
-  const finalStates = ["done", "left", "expired"];
+  const finalStates = ["done", "left"];
 
   // One request at a time: the next is scheduled only once this one has
   // finished, so a slow connection never stacks requests.
@@ -50,9 +44,6 @@
     const oldCard = document.querySelector("section.card");
     const newCard = cardFrom(html);
     if (!(oldCard instanceof HTMLElement) || !newCard) return;
-    // The server sends the countdown empty; fill it first, so a card that
-    // only differs by the ticking text counts as unchanged.
-    showTimeLeft(newCard);
     // Most polls bring the same card: leave the page alone, so nothing
     // flickers and nothing the diner is reading or selecting is lost.
     if (newCard.outerHTML === oldCard.outerHTML) return;
@@ -66,41 +57,6 @@
     // the same words as the card.
     if (newCard.dataset.title) document.title = newCard.dataset.title;
     if (newCard.dataset.state === "ready" && !wasReady) vibrate();
-  }
-
-  // Fills in "m:ss left", rounded down, from the deadline on the card and the
-  // phone's clock. Returns the time left, or undefined for a card without a
-  // countdown.
-  /** @param {Element} card */
-  function showTimeLeft(card) {
-    const deadline = card.querySelector(".ahead time");
-    const line = card.querySelector(".countdown");
-    if (!deadline || !line) return undefined;
-    const msLeft =
-      Date.parse(deadline.getAttribute("datetime") ?? "") - Date.now();
-    const seconds = Math.max(0, Math.floor(msLeft / 1000));
-    const text = `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")} left`;
-    if (line.textContent !== text) line.textContent = text;
-    return msLeft;
-  }
-
-  function tick() {
-    const card = document.querySelector("section.card");
-    if (!card) return;
-    const msLeft = showTimeLeft(card);
-    const deadline = card
-      .querySelector(".ahead time")
-      ?.getAttribute("datetime");
-    // Time's up: the card is about to change to "ran out", so ask now.
-    if (
-      msLeft !== undefined &&
-      msLeft <= 0 &&
-      deadline &&
-      deadline !== refetchedFor
-    ) {
-      refetchedFor = deadline;
-      void refresh();
-    }
   }
 
   function cardIsFinal() {
@@ -153,11 +109,8 @@
     }
   });
   // This script runs in the <head>, before the card exists, so it starts
-  // once the page has loaded: the countdown at once and every second, and
-  // the polling only if the card can still change.
+  // polling once the page has loaded, and only if the card can still change.
   document.addEventListener("DOMContentLoaded", () => {
-    tick();
-    setInterval(tick, 1000);
     if (!cardIsFinal()) timer = setTimeout(refresh, 2000);
   });
 })();

@@ -15,15 +15,14 @@ import { joinPage, partyPage } from "../views/waitlistPage.js";
 // The cookie that keeps this browser's party: its value is the party's token.
 const partyTokenCookie = "partyToken";
 
-// timeZone: the restaurant's, for the check-in deadline on the card.
-export function waitlistHandlers(waitlist: WaitlistService, timeZone: string) {
+export function waitlistHandlers(waitlist: WaitlistService) {
   return {
-    showPage,
+    showHomePage,
     showPartyPage,
     showPartyCard,
-    join,
-    checkIn,
-    leave,
+    joinFromForm,
+    checkInFromCard,
+    leaveFromCard,
     showHealth,
     showError,
   };
@@ -31,7 +30,7 @@ export function waitlistHandlers(waitlist: WaitlistService, timeZone: string) {
   // The home page: the join form, or, for a browser that has a party, that
   // party's own page, so typing the address or opening a bookmark always
   // finds it.
-  async function showPage(c: Context) {
+  async function showHomePage(c: Context) {
     // "Join the waitlist again" (?rejoin=<token>, from the card of a party
     // whose visit is over): the same form, with that party's name and email
     // filled in, most likely the same diner. The size is asked again: the
@@ -83,7 +82,7 @@ export function waitlistHandlers(waitlist: WaitlistService, timeZone: string) {
     if (!(await holdsActiveParty(c, party.token))) {
       setPartyCookie(c, party.token);
     }
-    return c.html(partyPage({ party, state, origin: siteOrigin(c), timeZone }));
+    return c.html(partyPage({ party, state, origin: siteOrigin(c) }));
   }
 
   // The party's card on its own, which the card's live updates fetch. The
@@ -96,9 +95,7 @@ export function waitlistHandlers(waitlist: WaitlistService, timeZone: string) {
     // No party any more: nothing to keep up to date.
     if (!found) return c.body(null, 204);
     const { party, state } = found;
-    return c.html(
-      cardFragment({ party, state, origin: siteOrigin(c), timeZone }),
-    );
+    return c.html(cardFragment({ party, state, origin: siteOrigin(c) }));
   }
 
   // Whether this browser follows a party, other than `except`, that still
@@ -110,7 +107,7 @@ export function waitlistHandlers(waitlist: WaitlistService, timeZone: string) {
     return own !== undefined && holdsPlace(own.state);
   }
 
-  async function join(c: Context) {
+  async function joinFromForm(c: Context) {
     // One active party per browser. A stale form (back button, old tab) must
     // neither change the party's details nor add a second place in the
     // queue; someone joining for another group uses another phone. The
@@ -159,7 +156,9 @@ export function waitlistHandlers(waitlist: WaitlistService, timeZone: string) {
   // answer is the same: the party's page shows its real state (checked in,
   // still waiting), so no separate notice is needed; an unknown party goes
   // to the join form. 303, like joining, so a reload never posts again.
-  async function checkIn(c: Context<BlankEnv, "/party/:partyToken/check-in">) {
+  async function checkInFromCard(
+    c: Context<BlankEnv, "/party/:partyToken/check-in">,
+  ) {
     const partyToken = c.req.param("partyToken");
     const outcome = await waitlist.checkIn(partyToken);
     return c.redirect(afterAction(outcome, partyToken), 303);
@@ -168,7 +167,9 @@ export function waitlistHandlers(waitlist: WaitlistService, timeZone: string) {
   // Like check-in: whatever happened (left, or refused because it's seated,
   // already left, or the save was busy), the party's page shows its real
   // state: the left card with its "Join the waitlist again" link.
-  async function leave(c: Context<BlankEnv, "/party/:partyToken/leave">) {
+  async function leaveFromCard(
+    c: Context<BlankEnv, "/party/:partyToken/leave">,
+  ) {
     const partyToken = c.req.param("partyToken");
     const outcome = await waitlist.leave(partyToken);
     return c.redirect(afterAction(outcome, partyToken), 303);
@@ -194,11 +195,9 @@ export function waitlistHandlers(waitlist: WaitlistService, timeZone: string) {
 }
 
 // Waiting, ready or seated: the party still has a place this browser
-// mustn't lose. A party that finished, left or ran out of time has none.
+// mustn't lose. A party that finished or left has none.
 function holdsPlace(state: PartyState): boolean {
-  return (
-    state.kind !== "done" && state.kind !== "left" && state.kind !== "expired"
-  );
+  return state.kind !== "done" && state.kind !== "left";
 }
 
 // A party's own page.

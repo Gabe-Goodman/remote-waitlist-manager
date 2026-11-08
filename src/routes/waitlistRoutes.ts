@@ -6,12 +6,7 @@ import { compress } from "hono/compress";
 import type { WaitlistService } from "../services/waitlistService.js";
 import { waitlistHandlers } from "./waitlistHandlers.js";
 
-// timeZone: the restaurant's, for the check-in deadline on the card. Passed
-// in rather than read here, so tests can fix it.
-export function waitlistRoutes(
-  waitlist: WaitlistService,
-  timeZone: string,
-): Hono {
+export function waitlistRoutes(waitlist: WaitlistService): Hono {
   const routes = new Hono();
 
   // Every page carries TableKit's 115 KB stylesheet; gzipped it's about
@@ -35,15 +30,15 @@ export function waitlistRoutes(
   });
 
   // Every URL the app answers. waitlistHandlers.ts says how.
-  const handle = waitlistHandlers(waitlist, timeZone);
+  const handle = waitlistHandlers(waitlist);
   // The join form; ?rejoin=<token> fills it in from a party whose visit
   // is over.
-  routes.get("/", handle.showPage);
+  routes.get("/", handle.showHomePage);
   routes.get("/party/:partyToken", handle.showPartyPage);
   routes.get("/party/:partyToken/card", handle.showPartyCard);
-  routes.post("/parties", handle.join);
-  routes.post("/party/:partyToken/check-in", handle.checkIn);
-  routes.post("/party/:partyToken/leave", handle.leave);
+  routes.post("/parties", handle.joinFromForm);
+  routes.post("/party/:partyToken/check-in", handle.checkInFromCard);
+  routes.post("/party/:partyToken/leave", handle.leaveFromCard);
   routes.get("/health", handle.showHealth);
   routes.onError(handle.showError);
 

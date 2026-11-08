@@ -39,7 +39,6 @@ type PartyPageProps = {
   party: Party;
   state: PartyState;
   origin: string;
-  timeZone: string;
 };
 type JoinPageProps = {
   party?: undefined;
@@ -74,7 +73,6 @@ function WaitlistPage(props: WaitlistPageProps) {
           party={props.party}
           state={props.state}
           origin={props.origin}
-          timeZone={props.timeZone}
         />
       </Layout>
     );

@@ -2,7 +2,6 @@
 import { describe, expect, test } from "vitest";
 import {
   checkIn,
-  checkInWindowMs,
   isDone,
   isInService,
   joinWaitlist,
@@ -287,7 +286,7 @@ describe("your place in the queue", () => {
       parties: [partyNamed("Ben"), partyNamed("Cy"), partyNamed("Ana")],
     };
 
-    const place = partyPlace(waitlist, "token-Ana", context.now);
+    const place = partyPlace(waitlist, "token-Ana");
 
     expect(place?.party.name).toBe("Ana");
     expect(place?.ahead).toBe(2);
@@ -296,13 +295,13 @@ describe("your place in the queue", () => {
   test("gives a newcomer every waiting party ahead of them", () => {
     const waitlist = { parties: [partyNamed("Ben"), partyNamed("Cy")] };
 
-    expect(partiesWaiting(waitlist, context.now)).toBe(2);
+    expect(partiesWaiting(waitlist)).toBe(2);
   });
 
   test("doesn't know a token that isn't on the waitlist", () => {
     const waitlist = { parties: [partyNamed("Ben")] };
 
-    expect(partyPlace(waitlist, "token-nobody", context.now)).toBeUndefined();
+    expect(partyPlace(waitlist, "token-nobody")).toBeUndefined();
   });
 
   test("counts only waiting and ready parties ahead of you", () => {
@@ -317,8 +316,8 @@ describe("your place in the queue", () => {
       ],
     };
 
-    expect(partyPlace(waitlist, "token-Ana", context.now)?.ahead).toBe(2);
-    expect(partiesWaiting(waitlist, context.now)).toBe(3);
+    expect(partyPlace(waitlist, "token-Ana")?.ahead).toBe(2);
+    expect(partiesWaiting(waitlist)).toBe(3);
   });
 });
 
@@ -463,6 +462,24 @@ describe("where a party stands", () => {
   const secondsFromNow = (seconds: number) =>
     new Date(now.getTime() + seconds * 1000);
 
+  test("keeps a ready party's table until it checks in or leaves, however long that takes", () => {
+    const parties = [
+      partyNamed("Ana", { size: 8 }),
+      partyNamed("Ben", { size: 3 }),
+    ];
+    const anHourLater = secondsFromNow(60 * 60);
+
+    // No time limit: a party that doesn't check in still holds its seats,
+    // and the party behind it keeps waiting.
+    expect(partyState({ parties }, "token-Ana", anHourLater)).toEqual({
+      kind: "ready",
+    });
+    expect(partyState({ parties }, "token-Ben", anHourLater)).toEqual({
+      kind: "waiting",
+      ahead: 1,
+    });
+  });
+
   test("says a party is waiting, with how many parties are ahead of it", () => {
     const waitlist = {
       parties: [
@@ -485,10 +502,7 @@ describe("where a party stands", () => {
   test("says a party is ready when its table is ready", () => {
     const waitlist = { parties: [partyNamed("Ana", { size: 8 })] };
 
-    expect(partyState(waitlist, "token-Ana", now)).toEqual({
-      kind: "ready",
-      checkInBy: secondsFromNow(60),
-    });
+    expect(partyState(waitlist, "token-Ana", now)).toEqual({ kind: "ready" });
   });
 
   test("says a checked-in party is in service until its time is up, then done", () => {
@@ -587,7 +601,7 @@ describe("checking in", () => {
     ).toEqual({ kind: "waiting", ahead: 0 });
     expect(
       partyState(result.waitlist, "token-Ben", secondsFromNow(18)),
-    ).toEqual({ kind: "ready", checkInBy: secondsFromNow(78) });
+    ).toEqual({ kind: "ready" });
   });
 });
 
@@ -629,7 +643,6 @@ describe("leaving", () => {
     if (!result.ok) throw new Error(`leave refused: ${result.reason}`);
     expect(partyState(result.waitlist, "token-Ben", now)).toEqual({
       kind: "ready",
-      checkInBy: secondsFromNow(60),
     });
   });
 
@@ -642,8 +655,8 @@ describe("leaving", () => {
       ],
     };
 
-    expect(partyPlace(waitlist, "token-Ana", now)?.ahead).toBe(1);
-    expect(partiesWaiting(waitlist, now)).toBe(2);
+    expect(partyPlace(waitlist, "token-Ana")?.ahead).toBe(1);
+    expect(partiesWaiting(waitlist)).toBe(2);
   });
 
   test("lets the email of a party that left join again, at the back of the queue", () => {
@@ -705,198 +718,5 @@ describe("leaving", () => {
       undefined,
       undefined,
     ]);
-  });
-});
-
-describe("checking in on time", () => {
-  const now = new Date("2026-11-07T18:00:00Z");
-  const secondsFromNow = (seconds: number) =>
-    new Date(now.getTime() + seconds * 1000);
-  const stateOf = (parties: Party[], name: string, at: Date) =>
-    partyState({ parties }, `token-${name}`, at);
-
-  test("gives a party one minute to check in", () => {
-    expect(checkInWindowMs).toBe(60_000);
-  });
-
-  test("gives every party exactly one minute from the moment its table is ready", () => {
-    const parties = [partyNamed("Ana", { joinedAt: secondsFromNow(20) })];
-
-    expect(stateOf(parties, "Ana", secondsFromNow(20))).toEqual({
-      kind: "ready",
-      checkInBy: secondsFromNow(80),
-    });
-    expect(stateOf(parties, "Ana", secondsFromNow(79.999))?.kind).toBe("ready");
-    expect(stateOf(parties, "Ana", secondsFromNow(80))?.kind).toBe("expired");
-  });
-
-  test("starts a party's minute when it joins, if its table is free", () => {
-    const parties = [partyNamed("Ana", { joinedAt: secondsFromNow(30) })];
-
-    expect(stateOf(parties, "Ana", secondsFromNow(30))).toEqual({
-      kind: "ready",
-      checkInBy: secondsFromNow(90),
-    });
-  });
-
-  test("starts a party's minute when its table becomes ready, not when it joined", () => {
-    const parties = [
-      partyNamed("Ana", { size: 6, checkedInAt: now }),
-      partyNamed("Ben", { size: 5 }),
-    ];
-
-    expect(stateOf(parties, "Ben", secondsFromNow(18))).toEqual({
-      kind: "ready",
-      checkInBy: secondsFromNow(78),
-    });
-  });
-
-  test("expires a ready party that hasn't checked in by its deadline", () => {
-    const parties = [partyNamed("Ana", { size: 8 })];
-
-    expect(stateOf(parties, "Ana", secondsFromNow(59.999))?.kind).toBe("ready");
-    expect(stateOf(parties, "Ana", secondsFromNow(60))).toEqual({
-      kind: "expired",
-    });
-  });
-
-  test("gives an expired party's seats to the next party in line, whose minute starts then", () => {
-    const parties = [
-      partyNamed("Ana", { size: 8 }),
-      partyNamed("Ben", { size: 3 }),
-    ];
-
-    expect(stateOf(parties, "Ben", secondsFromNow(59.999))?.kind).toBe(
-      "waiting",
-    );
-    expect(stateOf(parties, "Ben", secondsFromNow(60))).toEqual({
-      kind: "ready",
-      checkInBy: secondsFromNow(120),
-    });
-    expect(seatsAvailable({ parties }, secondsFromNow(60))).toBe(7);
-  });
-
-  test("expires parties one after another while nobody checks in", () => {
-    const parties = [
-      partyNamed("Ana", { size: 10 }),
-      partyNamed("Ben", { size: 10 }),
-      partyNamed("Cy", { size: 10 }),
-    ];
-    const at = secondsFromNow(130);
-
-    expect(stateOf(parties, "Ana", at)).toEqual({ kind: "expired" });
-    expect(stateOf(parties, "Ben", at)).toEqual({ kind: "expired" });
-    expect(stateOf(parties, "Cy", at)).toEqual({
-      kind: "ready",
-      checkInBy: secondsFromNow(180),
-    });
-  });
-
-  test("keeps a ready party's deadline when a party ahead of it leaves", () => {
-    const parties = [
-      partyNamed("Ana", { size: 4, leftAt: secondsFromNow(30) }),
-      partyNamed("Ben", { size: 4 }),
-    ];
-
-    expect(stateOf(parties, "Ben", secondsFromNow(30))).toEqual({
-      kind: "ready",
-      checkInBy: secondsFromNow(60),
-    });
-  });
-
-  test("starts the minute of a party made ready by a leave when that party left", () => {
-    const parties = [
-      partyNamed("Ana", { size: 8, leftAt: secondsFromNow(30) }),
-      partyNamed("Ben", { size: 3 }),
-    ];
-
-    expect(stateOf(parties, "Ben", secondsFromNow(30))).toEqual({
-      kind: "ready",
-      checkInBy: secondsFromNow(90),
-    });
-  });
-
-  test("never expires a party that checked in in time", () => {
-    const parties = [
-      partyNamed("Ana", { size: 1, checkedInAt: secondsFromNow(59) }),
-    ];
-
-    expect(stateOf(parties, "Ana", secondsFromNow(61))).toEqual({
-      kind: "in-service",
-    });
-    expect(stateOf(parties, "Ana", secondsFromNow(120))).toEqual({
-      kind: "done",
-    });
-  });
-
-  test("lets a party check in just before its deadline", () => {
-    const waitlist = { parties: [partyNamed("Ana")] };
-
-    expect(checkIn(waitlist, "token-Ana", secondsFromNow(59.999)).ok).toBe(
-      true,
-    );
-  });
-
-  test("refuses a check-in from the deadline on", () => {
-    const waitlist = { parties: [partyNamed("Ana")] };
-
-    expect(checkIn(waitlist, "token-Ana", secondsFromNow(60))).toEqual({
-      ok: false,
-      reason: "not-ready",
-    });
-  });
-
-  test("doesn't count an expired party as waiting or ahead of anyone", () => {
-    const parties = [
-      partyNamed("Ana", { size: 8 }),
-      partyNamed("Ben", { size: 3 }),
-    ];
-    const at = secondsFromNow(60);
-
-    expect(partyPlace({ parties }, "token-Ben", at)?.ahead).toBe(0);
-    expect(partiesWaiting({ parties }, at)).toBe(1);
-  });
-
-  test("lets the email of an expired party join again, at the back of the queue", () => {
-    const waitlist = {
-      parties: [partyNamed("Ana", { size: 8 }), partyNamed("Ben", { size: 3 })],
-    };
-
-    const result = joinWaitlist(
-      waitlist,
-      { ...valid, email: "ana@example.com" },
-      { now: secondsFromNow(60), token: "token-ana-again" },
-    );
-
-    if (!result.ok) throw new Error(`join refused: ${result.reason}`);
-    expect(result.waitlist.parties.map((p) => p.token)).toEqual([
-      "token-Ana",
-      "token-Ben",
-      "token-ana-again",
-    ]);
-  });
-});
-
-describe("replaying the past with later facts", () => {
-  const now = new Date("2026-11-07T18:00:00Z");
-  const secondsFromNow = (seconds: number) =>
-    new Date(now.getTime() + seconds * 1000);
-
-  test("doesn't let a check-in hold seats before it happened, which would bring an expired party back", () => {
-    // Ana (10) is ready at 0 and runs out of time at 60. Ben (1) joins at
-    // 70, is ready at once and checks in at 75: his seat is taken from 75,
-    // not from the start of the evening.
-    const parties = [
-      partyNamed("Ana", { size: 10 }),
-      partyNamed("Ben", {
-        size: 1,
-        joinedAt: secondsFromNow(70),
-        checkedInAt: secondsFromNow(75),
-      }),
-    ];
-
-    expect(partyState({ parties }, "token-Ana", secondsFromNow(80))).toEqual({
-      kind: "expired",
-    });
   });
 });
