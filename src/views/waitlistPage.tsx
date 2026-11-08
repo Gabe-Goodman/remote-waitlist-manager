@@ -32,13 +32,6 @@ const noticeVariants: Record<Notice, "error" | "warning"> = {
 
 const partySizes = Array.from({ length: maxPartySize }, (_, i) => i + 1);
 
-/** A refused join: what the diner typed, and why it was refused. */
-export type RefusedJoin = {
-  values: JoinForm;
-  errors?: FieldErrors;
-  notice: Notice;
-};
-
 // Either the party's card, or the join form with the waiting count: the
 // form can't be shown without the count. The form always comes with its
 // values, joinKey included: the route makes the key, views make no tokens.
@@ -49,14 +42,15 @@ type WaitlistPageProps =
       origin: string;
       notice?: "other-party";
     }
-  | { party?: undefined; waiting: number; refused: RefusedJoin }
   | {
       party?: undefined;
       waiting: number;
-      refused?: undefined;
-      // Empty for a newcomer; what a finished party filled in last time,
-      // when it joins again.
+      // What the form shows: empty for a newcomer, what the diner typed when
+      // a join was refused, or a finished party's name and email.
       values: JoinForm;
+      // A refused join's field errors and the notice above the form.
+      errors?: FieldErrors;
+      notice?: Notice;
     };
 
 export function WaitlistPage(props: WaitlistPageProps) {
@@ -86,9 +80,8 @@ export function WaitlistPage(props: WaitlistPageProps) {
     );
   }
 
-  const { waiting, refused } = props;
-  const values = props.refused ? props.refused.values : props.values;
-  const errors = refused?.errors ?? {};
+  const { waiting, values, notice } = props;
+  const errors = props.errors ?? {};
   const nameError = errors.name && fieldErrorMessages.name[errors.name];
   const emailError = errors.email && fieldErrorMessages.email[errors.email];
   const sizeError = errors.size && fieldErrorMessages.size[errors.size];
@@ -107,14 +100,14 @@ export function WaitlistPage(props: WaitlistPageProps) {
             copy lands on the party it already made, instead of being
             refused as a duplicate of the diner's own email. */}
         <input type="hidden" name="joinKey" value={values.joinKey} />
-        {refused && (
+        {notice && (
           <div
             role="alert"
             className="alert"
-            data-variant={noticeVariants[refused.notice]}
+            data-variant={noticeVariants[notice]}
             data-layout="text-only"
           >
-            {noticeMessages[refused.notice]}
+            {noticeMessages[notice]}
           </div>
         )}
         {/* data-stretch: TableKit's fields are 220px wide unless stretched

@@ -5,22 +5,18 @@ import { bodyLimit } from "hono/body-limit";
 import { compress } from "hono/compress";
 import { deleteCookie, getCookie, setCookie } from "hono/cookie";
 import { HTTPException } from "hono/http-exception";
+import type { BlankEnv } from "hono/types";
 import type { JoinForm, PartyState } from "../domain/waitlist.js";
-import {
-  checkInParty,
-  findParty,
-  joinWaitlist,
-  leaveWaitlist,
-  waitingCount,
-  type Environment,
-} from "../services/waitlistService.js";
-import type { WaitlistStore } from "../storage/waitlistStore.js";
+import type { WaitlistService } from "../services/waitlistService.js";
 import { ErrorPage } from "../views/errorPage.js";
 import { toFragment, toHtml } from "../views/html.js";
 import { PartyCard } from "../views/partyCard.js";
 import { WaitlistPage } from "../views/waitlistPage.js";
 
-export function waitlistRoutes(store: WaitlistStore, env: Environment): Hono {
+// The cookie that keeps this browser's party: its value is the party's token.
+const partyTokenCookie = "partyToken";
+
+export function waitlistRoutes(waitlist: WaitlistService): Hono {
   const routes = new Hono();
 
   // Every page carries TableKit's 115 KB stylesheet; gzipped it's about
@@ -43,9 +39,22 @@ export function waitlistRoutes(store: WaitlistStore, env: Environment): Hono {
     c.header("Cache-Control", "no-store");
   });
 
-  routes.get("/", async (c) => {
-    const token = getCookie(c, "party");
-    const found = token ? await findParty(store, env, token) : undefined;
+  // Every URL the app answers. The handlers below say how.
+  routes.get("/", showPage);
+  routes.get("/card", showCard);
+  routes.get("/party/:partyToken", openPartyLink);
+  routes.get("/join-again", showJoinAgainForm);
+  routes.post("/parties", join);
+  routes.post("/check-in", checkIn);
+  routes.post("/leave", leave);
+  routes.get("/health", showHealth);
+  routes.onError(showError);
+
+  return routes;
+
+  async function showPage(c: Context) {
+    const partyToken = getCookie(c, partyTokenCookie);
+    const found = partyToken ? await waitlist.find(partyToken) : undefined;
     if (found) {
       const { party, state } = found;
       return c.html(
@@ -56,20 +65,25 @@ export function waitlistRoutes(store: WaitlistStore, env: Environment): Hono {
     }
     // A cookie for a party that isn't on the waitlist is dead: clear it, so
     // the browser stops sending it, and show the join form.
-    if (token) deleteCookie(c, "party", { path: "/" });
-    const waiting = await waitingCount(store);
+    if (partyToken) deleteCookie(c, partyTokenCookie, { path: "/" });
+    const waiting = await waitlist.waitingCount();
     // A new key for every rendering: each fresh form is a new attempt. A
     // refused join's form keeps the key it was sent with instead.
-    const values = { name: "", email: "", size: "", joinKey: env.newToken() };
+    const values = {
+      name: "",
+      email: "",
+      size: "",
+      joinKey: waitlist.newJoinKey(),
+    };
     return c.html(toHtml(<WaitlistPage waiting={waiting} values={values} />));
-  });
+  }
 
   // The card on its own, which the card's live updates fetch. The page and
   // this route render the same component, so an update can't show a card
   // the page wouldn't.
-  routes.get("/card", async (c) => {
-    const token = getCookie(c, "party");
-    const found = token ? await findParty(store, env, token) : undefined;
+  async function showCard(c: Context) {
+    const partyToken = getCookie(c, partyTokenCookie);
+    const found = partyToken ? await waitlist.find(partyToken) : undefined;
     // No card to send: a page without a party is the join form, which has
     // no card to update. A dead cookie is left for / to clear.
     if (!found) return c.body(null, 204);
@@ -79,95 +93,7 @@ export function waitlistRoutes(store: WaitlistStore, env: Environment): Hono {
         <PartyCard party={party} state={state} origin={siteOrigin(c)} />,
       ),
     );
-  });
-
-  // The "Join the waitlist again" link on the done and left cards. It only
-  // shows the form: nothing changes until the diner joins, when POST
-  // /parties replaces the old party in this browser. So a reload, a prefetch
-  // or a link preview is harmless, and a party that doesn't join still sees
-  // its card at /.
-  routes.get("/join-again", async (c) => {
-    const token = getCookie(c, "party");
-    const found = token ? await findParty(store, env, token) : undefined;
-    // Only a party that finished or left can join again; anyone else has
-    // nothing to start over, so they go back to /.
-    if (!found || holdsPlace(found.state)) return c.redirect("/", 303);
-    // Most likely the same diner, so their name and email are filled in.
-    // The size is asked again: the group may not be the same this time.
-    const { name, email } = found.party;
-    const waiting = await waitingCount(store);
-    return c.html(
-      toHtml(
-        <WaitlistPage
-          waiting={waiting}
-          values={{ name, email, size: "", joinKey: env.newToken() }}
-        />,
-      ),
-    );
-  });
-
-  routes.post("/parties", async (c) => {
-    // One active party per browser. A stale form (back button, old tab) must
-    // neither change the party's details nor add a second place in the
-    // queue; someone joining for another group uses another phone. The
-    // diner goes back to their card, which shows the party they hold. A
-    // party whose meal is over, or that left, holds nothing, so its browser
-    // may join again.
-    const own = getCookie(c, "party");
-    const ownParty = own ? await findParty(store, env, own) : undefined;
-    if (ownParty && holdsPlace(ownParty.state)) {
-      return c.redirect("/", 303);
-    }
-    const form = await readJoinForm(c.req.parseBody());
-    const outcome = await joinWaitlist(store, env, form);
-    if (outcome.ok) {
-      rememberParty(c, outcome.party.token);
-      // Post/Redirect/Get: 303 sends the browser to / with a GET, so a reload
-      // or the back button never submits the form a second time.
-      return c.redirect("/", 303);
-    }
-    // A refused join shows the form again with what the diner typed.
-    const waiting = await waitingCount(store);
-    if (outcome.reason === "invalid") {
-      const refused = {
-        values: form,
-        errors: outcome.errors,
-        notice: "fix-fields" as const,
-      };
-      return c.html(
-        toHtml(<WaitlistPage waiting={waiting} refused={refused} />),
-        422,
-      );
-    }
-    // Duplicate and busy keep what was typed too; only the notice differs.
-    // Busy is 409, not 503: the save conflicted with others; the server
-    // itself is fine, and tapping Join again will most likely work.
-    const refused = { values: form, notice: outcome.reason };
-    return c.html(
-      toHtml(<WaitlistPage waiting={waiting} refused={refused} />),
-      409,
-    );
-  });
-
-  // Success or refusal, the answer is the same: the card at / shows the
-  // party's real state (checked in, still waiting, or the join form for an
-  // unknown party), so no separate notice is needed. 303, like joining, so a
-  // reload never posts the check-in again.
-  routes.post("/check-in", async (c) => {
-    const token = getCookie(c, "party");
-    if (token) await checkInParty(store, env, token);
-    return c.redirect("/", 303);
-  });
-
-  // Like check-in: whatever happened (left, or refused because there's no
-  // party, it's seated, it already left, or the save was busy), the card at /
-  // shows the party's real state. The cookie stays, so / shows the left card
-  // with its "Join the waitlist again" link, as it does for a finished party.
-  routes.post("/leave", async (c) => {
-    const token = getCookie(c, "party");
-    if (token) await leaveWaitlist(store, env, token);
-    return c.redirect("/", 303);
-  });
+  }
 
   // The token is 128 random bits, so the link is the key to the party:
   // whoever has it can act for the party, which is how a group shares one.
@@ -178,12 +104,13 @@ export function waitlistRoutes(store: WaitlistStore, env: Environment): Hono {
   // own party, not the one they opened. The page is answered at the link's
   // URL, so no flag or extra cookie carries the notice, and a reload repeats
   // a harmless GET.
-  routes.get("/party/:token", async (c) => {
-    const own = getCookie(c, "party");
-    const token = c.req.param("token");
+  // Typed with its path, so the party token in the URL is known to be there.
+  async function openPartyLink(c: Context<BlankEnv, "/party/:partyToken">) {
+    const ownPartyToken = getCookie(c, partyTokenCookie);
+    const linkPartyToken = c.req.param("partyToken");
     const ownParty =
-      own !== undefined && own !== token
-        ? await findParty(store, env, own)
+      ownPartyToken !== undefined && ownPartyToken !== linkPartyToken
+        ? await waitlist.find(ownPartyToken)
         : undefined;
     if (ownParty && holdsPlace(ownParty.state)) {
       return c.html(
@@ -197,29 +124,124 @@ export function waitlistRoutes(store: WaitlistStore, env: Environment): Hono {
         ),
       );
     }
-    if (await findParty(store, env, token)) rememberParty(c, token);
+    if (await waitlist.find(linkPartyToken)) setPartyCookie(c, linkPartyToken);
     return c.redirect("/", 303);
-  });
+  }
+
+  // The "Join the waitlist again" link on the done and left cards. It only
+  // shows the form: nothing changes until the diner joins, when POST
+  // /parties replaces the old party in this browser. So a reload, a prefetch
+  // or a link preview is harmless, and a party that doesn't join still sees
+  // its card at /.
+  async function showJoinAgainForm(c: Context) {
+    const partyToken = getCookie(c, partyTokenCookie);
+    const found = partyToken ? await waitlist.find(partyToken) : undefined;
+    // Only a party that finished or left can join again; anyone else has
+    // nothing to start over, so they go back to /.
+    if (!found || holdsPlace(found.state)) return c.redirect("/", 303);
+    // Most likely the same diner, so their name and email are filled in.
+    // The size is asked again: the group may not be the same this time.
+    const { name, email } = found.party;
+    const waiting = await waitlist.waitingCount();
+    return c.html(
+      toHtml(
+        <WaitlistPage
+          waiting={waiting}
+          values={{ name, email, size: "", joinKey: waitlist.newJoinKey() }}
+        />,
+      ),
+    );
+  }
+
+  async function join(c: Context) {
+    // One active party per browser. A stale form (back button, old tab) must
+    // neither change the party's details nor add a second place in the
+    // queue; someone joining for another group uses another phone. The
+    // diner goes back to their card, which shows the party they hold. A
+    // party whose meal is over, or that left, holds nothing, so its browser
+    // may join again.
+    const ownPartyToken = getCookie(c, partyTokenCookie);
+    const ownParty = ownPartyToken
+      ? await waitlist.find(ownPartyToken)
+      : undefined;
+    if (ownParty && holdsPlace(ownParty.state)) {
+      return c.redirect("/", 303);
+    }
+    const form = await joinFormFrom(c.req.parseBody());
+    const outcome = await waitlist.join(form);
+    if (outcome.ok) {
+      setPartyCookie(c, outcome.party.token);
+      // Post/Redirect/Get: 303 sends the browser to / with a GET, so a reload
+      // or the back button never submits the form a second time.
+      return c.redirect("/", 303);
+    }
+    // A refused join shows the form again with what the diner typed.
+    const waiting = await waitlist.waitingCount();
+    if (outcome.reason === "invalid") {
+      return c.html(
+        toHtml(
+          <WaitlistPage
+            waiting={waiting}
+            values={form}
+            errors={outcome.errors}
+            notice="fix-fields"
+          />,
+        ),
+        422,
+      );
+    }
+    // Duplicate and busy keep what was typed too; only the notice differs.
+    // Busy is 409, not 503: the save conflicted with others; the server
+    // itself is fine, and tapping Join again will most likely work.
+    return c.html(
+      toHtml(
+        <WaitlistPage
+          waiting={waiting}
+          values={form}
+          notice={outcome.reason}
+        />,
+      ),
+      409,
+    );
+  }
+
+  // Success or refusal, the answer is the same: the card at / shows the
+  // party's real state (checked in, still waiting, or the join form for an
+  // unknown party), so no separate notice is needed. 303, like joining, so a
+  // reload never posts the check-in again.
+  async function checkIn(c: Context) {
+    const partyToken = getCookie(c, partyTokenCookie);
+    if (partyToken) await waitlist.checkIn(partyToken);
+    return c.redirect("/", 303);
+  }
+
+  // Like check-in: whatever happened (left, or refused because there's no
+  // party, it's seated, it already left, or the save was busy), the card at /
+  // shows the party's real state. The cookie stays, so / shows the left card
+  // with its "Join the waitlist again" link, as it does for a finished party.
+  async function leave(c: Context) {
+    const partyToken = getCookie(c, partyTokenCookie);
+    if (partyToken) await waitlist.leave(partyToken);
+    return c.redirect("/", 303);
+  }
+
+  async function showHealth(c: Context) {
+    // Loading the waitlist proves MongoDB answers and the waitlist exists.
+    // The e2e tests wait for this before they start.
+    await waitlist.checkHealth();
+    return c.text("ok");
+  }
 
   // Any error a route throws (a database outage, a bug) ends here: the
   // details go to the server log, the diner gets a plain page with a Try
   // again link.
-  routes.onError((error, c) => {
+  function showError(error: Error, c: Context) {
     // An HTTPException already carries the right answer (the body limit's
     // 413); only unexpected errors become the 500 page.
     if (error instanceof HTTPException) return error.getResponse();
     console.error(error);
     return c.html(toHtml(<ErrorPage />), 500);
-  });
-
-  routes.get("/health", async (c) => {
-    // Loading the waitlist proves MongoDB answers and the waitlist exists.
-    // The e2e tests wait for this before they start.
-    await store.load();
-    return c.text("ok");
-  });
-
-  return routes;
+  }
 }
 
 // Waiting, ready or seated: the party still has a place this browser
@@ -237,8 +259,8 @@ function siteOrigin(c: Context): string {
 // HttpOnly: page scripts can't read the token. SameSite=Lax: other sites
 // can't post with it. Secure over HTTPS. Six hours outlasts any wait for a
 // table.
-function rememberParty(c: Context, token: string): void {
-  setCookie(c, "party", token, {
+function setPartyCookie(c: Context, partyToken: string): void {
+  setCookie(c, partyTokenCookie, partyToken, {
     httpOnly: true,
     sameSite: "Lax",
     secure: new URL(c.req.url).protocol === "https:",
@@ -248,11 +270,12 @@ function rememberParty(c: Context, token: string): void {
 }
 
 /**
- * The form's fields as text. A missing field reads as "": a skipped party
- * size (its disabled "Choose…" option isn't submitted) then fails
- * validation instead of crashing here.
+ * The join form as plain text. A parsed body gives each field as a string,
+ * a File or nothing; the rules expect four strings, so anything else reads
+ * as "": a skipped party size (its disabled "Choose…" option isn't
+ * submitted) then fails validation instead of crashing here.
  */
-async function readJoinForm(
+async function joinFormFrom(
   body: Promise<Record<string, string | File>>,
 ): Promise<JoinForm> {
   const fields = await body;

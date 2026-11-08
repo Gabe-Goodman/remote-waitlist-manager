@@ -9,12 +9,7 @@ import {
   type WaitlistDocument,
   type WaitlistStore,
 } from "../storage/waitlistStore.js";
-import {
-  checkInParty,
-  joinWaitlist,
-  leaveWaitlist,
-  retryOnConflict,
-} from "./waitlistService.js";
+import { retryOnConflict, waitlistService } from "./waitlistService.js";
 
 describe("retrying a save that conflicted", () => {
   test("succeeds on the next attempt after one conflict", async () => {
@@ -70,7 +65,7 @@ describe("joining the waitlist", () => {
   test("saves a new party so it loads back", async () => {
     const store = await emptyStore();
 
-    const outcome = await joinWaitlist(store, env, {
+    const outcome = await waitlistService(store, env).join({
       name: "Ana",
       email: "ana@example.com",
       size: "2",
@@ -86,7 +81,7 @@ describe("joining the waitlist", () => {
   test("refuses an invalid form without saving anything", async () => {
     const store = await emptyStore();
 
-    const outcome = await joinWaitlist(store, env, {
+    const outcome = await waitlistService(store, env).join({
       name: "",
       email: "ana@example.com",
       size: "2",
@@ -114,7 +109,7 @@ describe("joining the waitlist", () => {
     }));
 
     const outcomes = await Promise.all(
-      forms.map((form) => joinWaitlist(store, env, form)),
+      forms.map((form) => waitlistService(store, env).join(form)),
     );
 
     expect(outcomes.filter((outcome) => !outcome.ok)).toEqual([]);
@@ -132,8 +127,8 @@ describe("joining the waitlist", () => {
     };
 
     const outcomes = await Promise.all([
-      joinWaitlist(store, env, form),
-      joinWaitlist(store, env, form),
+      waitlistService(store, env).join(form),
+      waitlistService(store, env).join(form),
     ]);
 
     expect(outcomes.map((outcome) => outcome.ok).toSorted()).toEqual([
@@ -155,8 +150,8 @@ describe("joining the waitlist", () => {
     };
 
     const [first, second] = await Promise.all([
-      joinWaitlist(store, env, form),
-      joinWaitlist(store, env, form),
+      waitlistService(store, env).join(form),
+      waitlistService(store, env).join(form),
     ]);
 
     if (!first?.ok || !second?.ok)
@@ -174,10 +169,10 @@ describe("joining the waitlist", () => {
       size: "2",
       joinKey: "key-1",
     };
-    const first = await joinWaitlist(store, env, form);
+    const first = await waitlistService(store, env).join(form);
     const { version } = await store.load();
 
-    const second = await joinWaitlist(store, env, form);
+    const second = await waitlistService(store, env).join(form);
 
     if (!first.ok || !second.ok)
       throw new Error(`join refused: ${JSON.stringify([first, second])}`);
@@ -187,7 +182,7 @@ describe("joining the waitlist", () => {
 });
 
 async function joined(store: WaitlistStore, name: string, size: number) {
-  const outcome = await joinWaitlist(store, env, {
+  const outcome = await waitlistService(store, env).join({
     name,
     email: `${name.toLowerCase()}@example.com`,
     size: String(size),
@@ -202,7 +197,7 @@ describe("checking in", () => {
     const store = await emptyStore();
     const ana = await joined(store, "Ana", 2);
 
-    const outcome = await checkInParty(store, env, ana.token);
+    const outcome = await waitlistService(store, env).checkIn(ana.token);
 
     expect(outcome).toEqual({
       ok: true,
@@ -218,7 +213,7 @@ describe("checking in", () => {
     const ben = await joined(store, "Ben", 3);
     const before = await store.load();
 
-    const outcome = await checkInParty(store, env, ben.token);
+    const outcome = await waitlistService(store, env).checkIn(ben.token);
 
     expect(outcome).toEqual({ ok: false, reason: "not-ready" });
     expect(await store.load()).toEqual(before);
@@ -227,9 +222,9 @@ describe("checking in", () => {
   test("refuses a second check-in for the same party", async () => {
     const store = await emptyStore();
     const ana = await joined(store, "Ana", 2);
-    await checkInParty(store, env, ana.token);
+    await waitlistService(store, env).checkIn(ana.token);
 
-    const outcome = await checkInParty(store, env, ana.token);
+    const outcome = await waitlistService(store, env).checkIn(ana.token);
 
     expect(outcome).toEqual({ ok: false, reason: "already-checked-in" });
   });
@@ -238,7 +233,7 @@ describe("checking in", () => {
     const store = await emptyStore();
     await joined(store, "Ana", 2);
 
-    const outcome = await checkInParty(store, env, "no-such-token");
+    const outcome = await waitlistService(store, env).checkIn("no-such-token");
 
     expect(outcome).toEqual({ ok: false, reason: "not-found" });
   });
@@ -251,7 +246,7 @@ describe("checking in", () => {
     }
 
     const outcomes = await Promise.all(
-      parties.map((party) => checkInParty(store, env, party.token)),
+      parties.map((party) => waitlistService(store, env).checkIn(party.token)),
     );
 
     expect(outcomes.filter((outcome) => !outcome.ok)).toEqual([]);
@@ -266,8 +261,8 @@ describe("checking in", () => {
     const ana = await joined(store, "Ana", 2);
 
     const outcomes = await Promise.all([
-      checkInParty(store, env, ana.token),
-      checkInParty(store, env, ana.token),
+      waitlistService(store, env).checkIn(ana.token),
+      waitlistService(store, env).checkIn(ana.token),
     ]);
 
     expect(outcomes.map((outcome) => outcome.ok).toSorted()).toEqual([
@@ -286,7 +281,7 @@ describe("leaving", () => {
     const store = await emptyStore();
     const ana = await joined(store, "Ana", 2);
 
-    const outcome = await leaveWaitlist(store, env, ana.token);
+    const outcome = await waitlistService(store, env).leave(ana.token);
 
     expect(outcome).toEqual({ ok: true, party: { ...ana, leftAt: env.now() } });
     const { waitlist } = await store.load();
@@ -296,10 +291,10 @@ describe("leaving", () => {
   test("refuses a party that has checked in, without saving anything", async () => {
     const store = await emptyStore();
     const ana = await joined(store, "Ana", 2);
-    await checkInParty(store, env, ana.token);
+    await waitlistService(store, env).checkIn(ana.token);
     const before = await store.load();
 
-    const outcome = await leaveWaitlist(store, env, ana.token);
+    const outcome = await waitlistService(store, env).leave(ana.token);
 
     expect(outcome).toEqual({ ok: false, reason: "seated" });
     expect(await store.load()).toEqual(before);
@@ -308,9 +303,9 @@ describe("leaving", () => {
   test("refuses a party that has already left", async () => {
     const store = await emptyStore();
     const ana = await joined(store, "Ana", 2);
-    await leaveWaitlist(store, env, ana.token);
+    await waitlistService(store, env).leave(ana.token);
 
-    const outcome = await leaveWaitlist(store, env, ana.token);
+    const outcome = await waitlistService(store, env).leave(ana.token);
 
     expect(outcome).toEqual({ ok: false, reason: "already-left" });
   });
@@ -319,7 +314,7 @@ describe("leaving", () => {
     const store = await emptyStore();
     await joined(store, "Ana", 2);
 
-    const outcome = await leaveWaitlist(store, env, "no-such-token");
+    const outcome = await waitlistService(store, env).leave("no-such-token");
 
     expect(outcome).toEqual({ ok: false, reason: "not-found" });
   });
@@ -329,8 +324,8 @@ describe("leaving", () => {
     const ana = await joined(store, "Ana", 2);
 
     const [checkedIn, left] = await Promise.all([
-      checkInParty(store, env, ana.token),
-      leaveWaitlist(store, env, ana.token),
+      waitlistService(store, env).checkIn(ana.token),
+      waitlistService(store, env).leave(ana.token),
     ]);
 
     const { waitlist } = await store.load();

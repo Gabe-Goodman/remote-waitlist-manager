@@ -16,6 +16,7 @@ import {
   type WaitlistDocument,
   type WaitlistStore,
 } from "../storage/waitlistStore.js";
+import { waitlistService } from "../services/waitlistService.js";
 import { waitlistRoutes } from "./waitlistRoutes.js";
 
 let tokens = 0;
@@ -42,7 +43,7 @@ async function emptyStore() {
 }
 
 async function routes() {
-  return waitlistRoutes(await emptyStore(), env);
+  return waitlistRoutes(waitlistService(await emptyStore(), env));
 }
 
 async function pageHtml(path: string): Promise<string> {
@@ -159,7 +160,7 @@ describe("the join form", () => {
 describe("joining from the form", () => {
   test("joins and sends the diner to their page", async () => {
     const store = await emptyStore();
-    const app = waitlistRoutes(store, env);
+    const app = waitlistRoutes(waitlistService(store, env));
 
     const response = await postJoin(app, ana);
 
@@ -172,11 +173,14 @@ describe("joining from the form", () => {
   test("remembers the party in a cookie that scripts and other sites can't use", async () => {
     const store = await emptyStore();
 
-    const response = await postJoin(waitlistRoutes(store, env), ana);
+    const response = await postJoin(
+      waitlistRoutes(waitlistService(store, env)),
+      ana,
+    );
 
     const { waitlist } = await store.load();
     const cookie = response.headers.get("Set-Cookie") ?? "";
-    expect(cookie).toContain(`party=${waitlist.parties[0]?.token};`);
+    expect(cookie).toContain(`partyToken=${waitlist.parties[0]?.token};`);
     expect(cookie).toContain("HttpOnly");
     expect(cookie).toContain("SameSite=Lax");
     expect(cookie).toContain("Max-Age=21600");
@@ -235,7 +239,7 @@ describe("joining from the form", () => {
 
   test("refuses a taken email without revealing that party's link", async () => {
     const store = await emptyStore();
-    const app = waitlistRoutes(store, env);
+    const app = waitlistRoutes(waitlistService(store, env));
     await postJoin(app, ana);
     const { waitlist } = await store.load();
     const anasToken = waitlist.parties[0]?.token ?? "missing";
@@ -288,16 +292,16 @@ describe("joining from the form", () => {
     const app = await routes();
 
     const response = await postJoin(app, ana, "http://localhost/parties", {
-      Cookie: "party=gone",
+      Cookie: "partyToken=gone",
     });
 
     expect(response.status).toBe(303);
     expect(response.headers.get("Location")).toBe("/");
-    expect(response.headers.get("Set-Cookie")).toContain("party=");
+    expect(response.headers.get("Set-Cookie")).toContain("partyToken=");
   });
 });
 
-/** The `party=…` part of a Set-Cookie header, ready to send back. */
+/** The `partyToken=…` part of a Set-Cookie header, ready to send back. */
 function partyCookie(response: Response): string {
   return response.headers.get("Set-Cookie")?.split(";")[0] ?? "";
 }
@@ -321,7 +325,7 @@ describe("double taps", () => {
       expect(response.status).toBe(303);
       expect(response.headers.get("Location")).toBe("/");
     }
-    expect(partyCookie(first)).toMatch(/^party=.+/);
+    expect(partyCookie(first)).toMatch(/^partyToken=.+/);
     expect(partyCookie(second)).toBe(partyCookie(first));
     expect(await (await app.request("/")).text()).toContain(
       "1 party is waiting",
@@ -378,12 +382,12 @@ describe("your place in the queue", () => {
     const response = await (
       await routes()
     ).request("/", {
-      headers: { Cookie: "party=token-nobody" },
+      headers: { Cookie: "partyToken=token-nobody" },
     });
 
     expect(await response.text()).toMatch(/<form [^>]*action="\/parties"/);
     const cookie = response.headers.get("Set-Cookie") ?? "";
-    expect(cookie).toContain("party=;");
+    expect(cookie).toContain("partyToken=;");
     expect(cookie).toContain("Max-Age=0");
   });
 });
@@ -392,7 +396,7 @@ describe("the party's link", () => {
   test("opens a party from its link in another browser, and remembers it there", async () => {
     const app = await routes();
     const anasCookie = partyCookie(await postJoin(app, ana));
-    const anasToken = anasCookie.replace("party=", "");
+    const anasToken = anasCookie.replace("partyToken=", "");
 
     const opened = await app.request(`/party/${anasToken}`);
 
@@ -408,13 +412,13 @@ describe("the party's link", () => {
   test("never replaces this browser's own party with someone else's link", async () => {
     const app = await routes();
     const anasToken = partyCookie(await postJoin(app, ana)).replace(
-      "party=",
+      "partyToken=",
       "",
     );
     const bensCookie = partyCookie(
       await postJoin(app, { ...ana, name: "Ben", email: "ben@example.com" }),
     );
-    const bensToken = bensCookie.replace("party=", "");
+    const bensToken = bensCookie.replace("partyToken=", "");
 
     const opened = await app.request(`/party/${anasToken}`, {
       headers: { Cookie: bensCookie },
@@ -431,7 +435,7 @@ describe("the party's link", () => {
   test("explains that this browser keeps its own party when another party's link is opened", async () => {
     const app = await routes();
     const anasToken = partyCookie(await postJoin(app, ana)).replace(
-      "party=",
+      "partyToken=",
       "",
     );
     const bensCookie = partyCookie(
@@ -458,10 +462,10 @@ describe("the party's link", () => {
   test("replaces a cookie whose party is no longer on the waitlist", async () => {
     const app = await routes();
     const anasCookie = partyCookie(await postJoin(app, ana));
-    const anasToken = anasCookie.replace("party=", "");
+    const anasToken = anasCookie.replace("partyToken=", "");
 
     const opened = await app.request(`/party/${anasToken}`, {
-      headers: { Cookie: "party=gone" },
+      headers: { Cookie: "partyToken=gone" },
     });
 
     expect(partyCookie(opened)).toBe(anasCookie);
@@ -478,7 +482,7 @@ describe("the party's link", () => {
   test("shows the party's full link on its card, ready to copy, with who can use it", async () => {
     const app = await routes();
     const anasCookie = partyCookie(await postJoin(app, ana));
-    const anasToken = anasCookie.replace("party=", "");
+    const anasToken = anasCookie.replace("partyToken=", "");
 
     const card = await (
       await app.request("/", { headers: { Cookie: anasCookie } })
@@ -607,10 +611,10 @@ describe("checking in", () => {
 
   test("sends a check-in without a party to the join form", async () => {
     const store = await emptyStore();
-    const app = waitlistRoutes(store, env);
+    const app = waitlistRoutes(waitlistService(store, env));
 
     const noCookie = await postCheckIn(app);
-    const unknownCookie = await postCheckIn(app, "party=gone");
+    const unknownCookie = await postCheckIn(app, "partyToken=gone");
 
     for (const response of [noCookie, unknownCookie]) {
       expect(response.status).toBe(303);
@@ -621,7 +625,7 @@ describe("checking in", () => {
 
   test("says thanks once the meal is over, without the party's link", async () => {
     const clock = movableClock();
-    const app = waitlistRoutes(await emptyStore(), clock.env);
+    const app = waitlistRoutes(waitlistService(await emptyStore(), clock.env));
     const anasCookie = partyCookie(await postJoin(app, ana));
     await postCheckIn(app, anasCookie);
 
@@ -637,7 +641,7 @@ describe("checking in", () => {
 
   test("lets a browser whose party has finished join again", async () => {
     const clock = movableClock();
-    const app = waitlistRoutes(await emptyStore(), clock.env);
+    const app = waitlistRoutes(waitlistService(await emptyStore(), clock.env));
     const anasCookie = partyCookie(await postJoin(app, ana));
     await postCheckIn(app, anasCookie);
     clock.advance(6000);
@@ -651,13 +655,13 @@ describe("checking in", () => {
 
     expect(response.status).toBe(303);
     const newCookie = partyCookie(response);
-    expect(newCookie).toMatch(/^party=.+/);
+    expect(newCookie).toMatch(/^partyToken=.+/);
     expect(newCookie).not.toBe(anasCookie);
   });
 
   test("lets a finished party's browser open another party's link", async () => {
     const clock = movableClock();
-    const app = waitlistRoutes(await emptyStore(), clock.env);
+    const app = waitlistRoutes(waitlistService(await emptyStore(), clock.env));
     const anasCookie = partyCookie(await postJoin(app, ana));
     await postCheckIn(app, anasCookie);
     const bensCookie = partyCookie(
@@ -666,7 +670,7 @@ describe("checking in", () => {
     clock.advance(6000);
 
     const opened = await app.request(
-      `/party/${bensCookie.replace("party=", "")}`,
+      `/party/${bensCookie.replace("partyToken=", "")}`,
       { headers: { Cookie: anasCookie } },
     );
 
@@ -680,7 +684,7 @@ describe("joining again", () => {
   /** A browser whose party of 2 has checked in, and the clock it runs on. */
   async function checkedInParty() {
     const clock = movableClock();
-    const app = waitlistRoutes(await emptyStore(), clock.env);
+    const app = waitlistRoutes(waitlistService(await emptyStore(), clock.env));
     const anasCookie = partyCookie(await postJoin(app, ana));
     await postCheckIn(app, anasCookie);
     return { app, clock, anasCookie };
@@ -858,7 +862,7 @@ describe("leaving", () => {
     expect(tagWithId(form, "email")).toContain('value="ana@example.com"');
     expect(rejoined.status).toBe(303);
     const newCookie = partyCookie(rejoined);
-    expect(newCookie).toMatch(/^party=.+/);
+    expect(newCookie).toMatch(/^partyToken=.+/);
     expect(newCookie).not.toBe(anasCookie);
     expect(await cardHtml(app, newCookie)).toContain("1 party ahead of you.");
     expect(await cardHtml(app, bensCookie)).toContain(
@@ -940,7 +944,7 @@ describe("the card on its own", () => {
     const app = await routes();
 
     const noCookie = await getCard(app);
-    const unknownParty = await getCard(app, "party=nobody");
+    const unknownParty = await getCard(app, "partyToken=nobody");
 
     for (const response of [noCookie, unknownParty]) {
       expect(response.status).toBe(204);
@@ -996,8 +1000,7 @@ describe("the waiting count before joining", () => {
 describe("when joining can't go through", () => {
   test("asks the diner to tap Join again when the waitlist is busy, keeping what they typed", async () => {
     const app = waitlistRoutes(
-      withSavesAlwaysConflicting(await emptyStore()),
-      env,
+      waitlistService(withSavesAlwaysConflicting(await emptyStore()), env),
     );
 
     const response = await postJoin(app, ana);
@@ -1015,7 +1018,9 @@ describe("when joining can't go through", () => {
 describe("when something goes wrong", () => {
   test("shows a friendly page when the database fails, without the error's details", async () => {
     const log = vi.spyOn(console, "error").mockImplementation(() => {});
-    const app = waitlistRoutes(withLoadFailing(await emptyStore()), env);
+    const app = waitlistRoutes(
+      waitlistService(withLoadFailing(await emptyStore()), env),
+    );
 
     const response = await app.request("/");
 
@@ -1033,7 +1038,7 @@ describe("when something goes wrong", () => {
     vi.spyOn(console, "error").mockImplementation(() => {});
     const app = new Hono().route(
       "/",
-      waitlistRoutes(withLoadFailing(await emptyStore()), env),
+      waitlistRoutes(waitlistService(withLoadFailing(await emptyStore()), env)),
     );
 
     const response = await app.request("/");
@@ -1062,7 +1067,7 @@ describe("oversized form posts", () => {
 
   test("refuses a form post larger than 10 KB without saving anything", async () => {
     const store = await emptyStore();
-    const app = waitlistRoutes(store, env);
+    const app = waitlistRoutes(waitlistService(store, env));
 
     const response = await postJoin(app, {
       ...ana,
@@ -1092,11 +1097,13 @@ describe("the back button", () => {
     vi.spyOn(console, "error").mockImplementation(() => {});
     const app = await routes();
     const anasCookie = partyCookie(await postJoin(app, ana));
-    const anasToken = anasCookie.replace("party=", "");
+    const anasToken = anasCookie.replace("partyToken=", "");
     const bensCookie = partyCookie(
       await postJoin(app, { ...ana, name: "Ben", email: "ben@example.com" }),
     );
-    const failing = waitlistRoutes(withLoadFailing(await emptyStore()), env);
+    const failing = waitlistRoutes(
+      waitlistService(withLoadFailing(await emptyStore()), env),
+    );
 
     const pages = {
       "join form": await app.request("/"),
@@ -1130,7 +1137,9 @@ describe("styling", () => {
     );
     const app = await routes();
     const joined = await postJoin(app, ana);
-    const failing = waitlistRoutes(withLoadFailing(await emptyStore()), env);
+    const failing = waitlistRoutes(
+      waitlistService(withLoadFailing(await emptyStore()), env),
+    );
 
     const pages = {
       "join form": await app.request("/"),
@@ -1174,9 +1183,11 @@ describe("styling", () => {
 
   test("shows the notice in a TableKit alert: error, or warning when busy", async () => {
     const store = await emptyStore();
-    const app = waitlistRoutes(store, env);
+    const app = waitlistRoutes(waitlistService(store, env));
     await postJoin(app, ana);
-    const busy = waitlistRoutes(withSavesAlwaysConflicting(store), env);
+    const busy = waitlistRoutes(
+      waitlistService(withSavesAlwaysConflicting(store), env),
+    );
 
     const notices = {
       error: await postJoin(app, { ...ana, name: "" }),
