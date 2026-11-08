@@ -29,6 +29,7 @@ export default tseslint.config(
         window: "readonly",
         fetch: "readonly",
         setTimeout: "readonly",
+        setInterval: "readonly",
         clearTimeout: "readonly",
         Element: "readonly",
         HTMLInputElement: "readonly",

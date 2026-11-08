@@ -568,8 +568,11 @@ describe("checking in", () => {
     expect(html).toContain("<h1>Your table is ready!</h1>");
     // Ready at 18:00 UTC: a minute later is 03:01:00 the next day in Tokyo.
     expect(html).toContain(
-      'We&#x27;ll hold it for 1 minute. Check in by <time dateTime="2026-11-07T18:01:00.000Z">03:01:00</time>.',
+      'We&#x27;ll hold it for 1 minute. <span class="deadline">Check in by <time dateTime="2026-11-07T18:01:00.000Z">03:01:00</time>.</span>',
     );
+    // Empty in the HTML: only the page's script fills in the time left, and
+    // the stylesheet then hides the clock time it replaces.
+    expect(html).toContain('<p class="countdown"></p>');
     expect(html).toContain("Ana, party of 2");
     expect(html).toContain(
       '<form action="/check-in" method="post"><button type="submit">Check in</button></form>',
@@ -606,7 +609,9 @@ describe("checking in", () => {
     const html = await cardHtml(app, anasCookie);
     expect(html).toContain("<title>You&#x27;re checked in.</title>");
     expect(html).toContain("<h1>You&#x27;re checked in.</h1>");
-    expect(html).toContain("Enjoy your meal.");
+    // No clock on the meal: nobody likes being timed at dinner.
+    expect(html).toContain('<p class="ahead">Enjoy your meal.</p>');
+    expect(html).not.toContain('class="countdown"');
     expect(html).toContain("Ana, party of 2");
     expect(html).not.toContain('action="/check-in"');
   });
