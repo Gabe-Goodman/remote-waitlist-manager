@@ -115,3 +115,29 @@ test("lands on the party when an old copy of the form is sent again", async ({
   await expect(page.getByText("Dee, party of 4")).toBeVisible();
   await expect(page.getByText("Eve, party of 1")).toBeHidden();
 });
+
+test("leaves after a second tap, then joins again with name and email filled in", async ({
+  page,
+}) => {
+  const email = uniqueEmail("fay");
+  await page.goto("/");
+  await fillJoinForm(page, { name: "Fay", email, size: "2" });
+  await expect(page.getByRole("heading", { name: cardHeading })).toBeVisible();
+
+  // The confirmation is a native disclosure: it opens without JavaScript.
+  const leaveButton = page.getByRole("button", { name: "Yes, leave" });
+  await expect(leaveButton).toBeHidden();
+  await page.getByText("Leave the waitlist").click();
+  await leaveButton.click();
+
+  await expect(
+    page.getByRole("heading", { name: "You've left the waitlist." }),
+  ).toBeVisible();
+  await page.getByRole("link", { name: "Join the waitlist again" }).click();
+  await expect(page.getByLabel("Name")).toHaveValue("Fay");
+  await expect(page.getByLabel("Email")).toHaveValue(email);
+  await page.getByLabel("Party size").selectOption("2");
+  await page.getByRole("button", { name: "Join the waitlist" }).click();
+  await expect(page.getByRole("heading", { name: cardHeading })).toBeVisible();
+  await expect(page.getByText("Fay, party of 2")).toBeVisible();
+});

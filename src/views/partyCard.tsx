@@ -1,8 +1,8 @@
 // The party's current state: waiting (with its place in the queue), ready
-// (with the Check-in button), checked in, or done (with a link to join
-// again); its name and size; and, while it still has a place, its link,
-// ready to copy. Renders only: the route passes in the state and the site's
-// origin.
+// (with the Check-in button), checked in, or done or left (with a link to
+// join again); its name and size; while it still has a place, its link,
+// ready to copy; and, while it's still in the queue, a way to leave.
+// Renders only: the route passes in the state and the site's origin.
 import type { Party, PartyState } from "../domain/waitlist.js";
 import { copyScript } from "./copyScript.js";
 import { cardTitles, messages } from "./messages.js";
@@ -18,6 +18,8 @@ export function PartyCard({
   state: PartyState;
   origin: string;
 }) {
+  const placeGone = state.kind === "done" || state.kind === "left";
+  const inQueue = state.kind === "waiting" || state.kind === "ready";
   return (
     <section className="card">
       <h1>{cardTitles[state.kind]}</h1>
@@ -29,7 +31,7 @@ export function PartyCard({
       </div>
       {/* A link, not a button, so nobody joins again the same evening by
           accident. */}
-      {state.kind === "done" && (
+      {placeGone && (
         <p className="join-again">
           <a href="/join-again">{messages.joinAgain}</a>
         </p>
@@ -41,10 +43,9 @@ export function PartyCard({
           <button type="submit">{messages.checkInButton}</button>
         </form>
       )}
-      {/* A finished party has no place left to share. */}
-      {state.kind !== "done" && (
-        <ShareLink link={`${origin}/party/${party.token}`} />
-      )}
+      {/* A finished party, or one that left, has no place left to share. */}
+      {!placeGone && <ShareLink link={`${origin}/party/${party.token}`} />}
+      {inQueue && <LeaveControl />}
     </section>
   );
 }
@@ -58,8 +59,30 @@ function StateLine({ state }: { state: PartyState }) {
     case "in-service":
       return <p className="ahead">{messages.enjoyMeal}</p>;
     case "done":
+    case "left":
       return null;
   }
+}
+
+// Leaving can't be undone, so it takes a second, deliberate tap: the summary
+// opens the warning and the button, and tapping it again closes them, which
+// is how a diner stays. A native <details> does this without a page of its
+// own or any script. Last on the card and quiet, so it never competes with
+// the Check-in button.
+function LeaveControl() {
+  return (
+    <details className="leave">
+      <summary>{messages.leave}</summary>
+      <p>{messages.leaveWarning}</p>
+      <form method="post" action="/leave">
+        {/* TableKit's danger button is outlined in red, not filled: it
+            warns, and it stays quieter than the Check-in button. */}
+        <button type="submit" data-variant="danger">
+          {messages.leaveButton}
+        </button>
+      </form>
+    </details>
+  );
 }
 
 // The cookie only remembers the party in this browser; the link carries it

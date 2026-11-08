@@ -76,6 +76,8 @@ export type Party = {
   joinedAt: Date;
   /** When the party checked in; absent until then. */
   checkedInAt?: Date;
+  /** When the party left the waitlist; absent unless it did. */
+  leftAt?: Date;
   /**
    * The key of the form that created the party, so a resubmission of the
    * same form is recognised.
@@ -151,10 +153,12 @@ export function join(
 
 /**
  * How many parties a newcomer would have ahead of them: those still waiting
- * or ready. A party that has checked in has left the queue for its table.
+ * or ready. A party that has checked in has left the queue for its table,
+ * and a party that left has given up its place.
  */
 export function partiesWaiting(waitlist: Waitlist): number {
-  return waitlist.parties.filter((party) => !party.checkedInAt).length;
+  return waitlist.parties.filter((party) => !party.checkedInAt && !party.leftAt)
+    .length;
 }
 
 /** A party and how many parties are ahead of it in the queue. */
@@ -196,9 +200,10 @@ export function isDone(party: Party, now: Date): boolean {
   return endsAt !== undefined && now >= endsAt;
 }
 
-// A finished party no longer holds a place, so its email can join again.
+// A finished party or one that left no longer holds a place, so its email
+// can join again.
 export function isActive(party: Party, now: Date): boolean {
-  return !isDone(party, now);
+  return !isDone(party, now) && !party.leftAt;
 }
 
 function totalSize(parties: readonly Party[]): number {
@@ -215,7 +220,8 @@ export function readyParties(waitlist: Waitlist, now: Date): Party[] {
   let free = seatCount - totalSize(seated);
   const ready: Party[] = [];
   for (const party of waitlist.parties) {
-    if (party.checkedInAt) continue;
+    // A party that left holds no seats: they go to the next party that fits.
+    if (party.checkedInAt || party.leftAt) continue;
     // First come, first served: at the first party that doesn't fit, everyone
     // behind it waits too, even a smaller party that would fit. The price is
     // idle seats behind a large party.
@@ -241,7 +247,8 @@ export type PartyState =
   | { kind: "waiting"; ahead: number }
   | { kind: "ready" }
   | { kind: "in-service" }
-  | { kind: "done" };
+  | { kind: "done" }
+  | { kind: "left" };
 
 export function partyState(
   waitlist: Waitlist,
@@ -251,6 +258,7 @@ export function partyState(
   const place = partyPlace(waitlist, token);
   if (!place) return undefined;
   const { party, ahead } = place;
+  if (party.leftAt) return { kind: "left" };
   if (isInService(party, now)) return { kind: "in-service" };
   if (isDone(party, now)) return { kind: "done" };
   const ready = readyParties(waitlist, now);
@@ -283,4 +291,28 @@ export function checkIn(
   const checkedIn: Party = { ...party, checkedInAt: now };
   const parties = waitlist.parties.map((p) => (p === party ? checkedIn : p));
   return { ok: true, waitlist: { parties }, party: checkedIn };
+}
+
+export type LeaveResult =
+  | { ok: true; waitlist: Waitlist; party: Party }
+  | { ok: false; reason: "not-found" | "seated" | "already-left" };
+
+/**
+ * Takes a waiting or ready party off the queue. The party stays in the list
+ * with its `leftAt`, a fact like every other, rather than being deleted. A
+ * party that has checked in has no place in the queue left to give up.
+ */
+export function leave(
+  waitlist: Waitlist,
+  token: string,
+  now: Date,
+): LeaveResult {
+  const party = waitlist.parties.find((p) => p.token === token);
+  if (!party) return { ok: false, reason: "not-found" };
+  if (party.leftAt) return { ok: false, reason: "already-left" };
+  if (party.checkedInAt) return { ok: false, reason: "seated" };
+
+  const left: Party = { ...party, leftAt: now };
+  const parties = waitlist.parties.map((p) => (p === party ? left : p));
+  return { ok: true, waitlist: { parties }, party: left };
 }

@@ -27,7 +27,7 @@ const styles = `
      8px inside a group, 24px between groups. */
   h1 + * { margin-top: var(--spacing-l2); }
   p + p { margin-top: var(--spacing-l2); }
-  form, .place, .share, .join-again { margin-top: var(--spacing-l5); }
+  form, .place, .share, .join-again, .leave { margin-top: var(--spacing-l5); }
   form > :first-child { margin-top: 0; }
   label { display: block; margin-top: var(--spacing-l4); }
   button { width: 100%; margin-top: var(--spacing-l5); }
@@ -70,6 +70,11 @@ const styles = `
   .copy-field button[hidden] { display: none; }
   .copy-field .icon-check, .copy-field[data-copied] .icon-copy { display: none; }
   .copy-field[data-copied] .icon-check { display: block; }
+  /* TableKit leaves <summary> unstyled; here it reads as a quiet link, like
+     the card's other text links, and its warning sits close beneath it. */
+  .leave summary { color: var(--link); text-decoration: underline;
+    cursor: pointer; width: fit-content; }
+  .leave summary + p { margin-top: var(--spacing-l2); }
   /* Read out by screen readers, never shown. */
   .visually-hidden { position: absolute; width: 1px; height: 1px;
     overflow: hidden; clip-path: inset(50%); white-space: nowrap; }

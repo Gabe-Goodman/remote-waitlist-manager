@@ -755,6 +755,129 @@ describe("joining again", () => {
   });
 });
 
+/** Posts the card's "Yes, leave" button, the way a browser does. */
+function postLeave(app: Hono, cookie?: string) {
+  return app.request("/leave", {
+    method: "POST",
+    headers: cookie ? { Cookie: cookie } : {},
+  });
+}
+
+describe("leaving", () => {
+  const leaveControl =
+    '<details class="leave"><summary>Leave the waitlist</summary><p>Your place can&#x27;t be restored. If you join again, you&#x27;ll go to the back of the waitlist.</p><form action="/leave" method="post"><button type="submit" data-variant="danger">Yes, leave</button></form></details>';
+
+  test("offers a waiting or ready party a way to leave, behind a second tap", async () => {
+    const app = await routes();
+    const cysCookie = partyCookie(
+      await postJoin(app, { name: "Cy", email: "cy@example.com", size: "2" }),
+    );
+    await postCheckIn(app, cysCookie);
+    // Cy's 2 seats are in service; Ana's 8 fit, Ben's 3 don't.
+    const anasCookie = partyCookie(await postJoin(app, { ...ana, size: "8" }));
+    const bensCookie = partyCookie(
+      await postJoin(app, { name: "Ben", email: "ben@example.com", size: "3" }),
+    );
+
+    const ready = await cardHtml(app, anasCookie);
+    const waiting = await cardHtml(app, bensCookie);
+    const checkedIn = await cardHtml(app, cysCookie);
+
+    expect(ready).toContain("<h1>Your table is ready!</h1>");
+    expect(ready).toContain(leaveControl);
+    expect(waiting).toContain("<h1>You&#x27;re on the waitlist</h1>");
+    expect(waiting).toContain(leaveControl);
+    expect(checkedIn).toContain("<h1>You&#x27;re checked in.</h1>");
+    expect(checkedIn).not.toContain('action="/leave"');
+  });
+
+  test("takes the party off the waitlist and shows that it left", async () => {
+    const app = await routes();
+    const anasCookie = partyCookie(await postJoin(app, ana));
+
+    const response = await postLeave(app, anasCookie);
+
+    expect(response.status).toBe(303);
+    expect(response.headers.get("Location")).toBe("/");
+    expect(response.headers.get("Set-Cookie")).toBeNull();
+    const card = await cardHtml(app, anasCookie);
+    expect(card).toContain("<title>You&#x27;ve left the waitlist.</title>");
+    expect(card).toContain("<h1>You&#x27;ve left the waitlist.</h1>");
+    expect(card).toContain("Ana, party of 2");
+    expect(card).not.toContain('id="party-link"');
+    expect(card).not.toContain('action="/leave"');
+    expect(card).toContain('<a href="/join-again">Join the waitlist again</a>');
+    expect(await (await app.request("/")).text()).toContain(
+      "No one is waiting right now.",
+    );
+  });
+
+  test("sends a refused leave to /", async () => {
+    const app = await routes();
+    const anasCookie = partyCookie(await postJoin(app, ana));
+    await postCheckIn(app, anasCookie);
+
+    const noParty = await postLeave(app);
+    const checkedIn = await postLeave(app, anasCookie);
+
+    for (const response of [noParty, checkedIn]) {
+      expect(response.status).toBe(303);
+      expect(response.headers.get("Location")).toBe("/");
+      expect(response.headers.get("Set-Cookie")).toBeNull();
+    }
+    expect(await cardHtml(app, anasCookie)).toContain(
+      "<h1>You&#x27;re checked in.</h1>",
+    );
+  });
+
+  test("lets a party that left join again at the back, with its name and email filled in", async () => {
+    const app = await routes();
+    const anasCookie = partyCookie(await postJoin(app, { ...ana, size: "8" }));
+    const bensCookie = partyCookie(
+      await postJoin(app, { name: "Ben", email: "ben@example.com", size: "3" }),
+    );
+    await postLeave(app, anasCookie);
+
+    const form = await (
+      await app.request("/join-again", { headers: { Cookie: anasCookie } })
+    ).text();
+    const rejoined = await postJoin(
+      app,
+      { ...ana, size: "8", joinKey: joinKeyIn(form) ?? "" },
+      "http://localhost/parties",
+      { Cookie: anasCookie },
+    );
+
+    expect(tagWithId(form, "name")).toContain('value="Ana"');
+    expect(tagWithId(form, "email")).toContain('value="ana@example.com"');
+    expect(rejoined.status).toBe(303);
+    const newCookie = partyCookie(rejoined);
+    expect(newCookie).toMatch(/^party=.+/);
+    expect(newCookie).not.toBe(anasCookie);
+    expect(await cardHtml(app, newCookie)).toContain("1 party ahead of you.");
+    expect(await cardHtml(app, bensCookie)).toContain(
+      "<h1>Your table is ready!</h1>",
+    );
+  });
+
+  test("frees a ready party's seats for the next party when it leaves", async () => {
+    const app = await routes();
+    const anasCookie = partyCookie(await postJoin(app, { ...ana, size: "8" }));
+    const bensCookie = partyCookie(
+      await postJoin(app, { name: "Ben", email: "ben@example.com", size: "3" }),
+    );
+    expect(await cardHtml(app, bensCookie)).toContain(
+      "<h1>You&#x27;re on the waitlist</h1>",
+    );
+
+    await postLeave(app, anasCookie);
+
+    expect(await cardHtml(app, bensCookie)).toContain(
+      "<h1>Your table is ready!</h1>",
+    );
+  });
+});
+
 describe("the waiting count before joining", () => {
   async function formAfterJoining(names: string[]): Promise<string> {
     const app = await routes();

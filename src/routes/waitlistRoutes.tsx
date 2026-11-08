@@ -5,11 +5,12 @@ import { bodyLimit } from "hono/body-limit";
 import { compress } from "hono/compress";
 import { deleteCookie, getCookie, setCookie } from "hono/cookie";
 import { HTTPException } from "hono/http-exception";
-import type { JoinForm } from "../domain/waitlist.js";
+import type { JoinForm, PartyState } from "../domain/waitlist.js";
 import {
   checkInParty,
   findParty,
   joinWaitlist,
+  leaveWaitlist,
   waitingCount,
   type Environment,
 } from "../services/waitlistService.js";
@@ -62,17 +63,17 @@ export function waitlistRoutes(store: WaitlistStore, env: Environment): Hono {
     return c.html(toHtml(<WaitlistPage waiting={waiting} values={values} />));
   });
 
-  // The done card's "Join the waitlist again" link. It only shows the form:
-  // nothing changes until the diner joins, when POST /parties replaces the
-  // finished party in this browser. So a reload, a prefetch or a link
-  // preview is harmless, and a party that doesn't join still sees its
-  // thank-you card at /.
+  // The "Join the waitlist again" link on the done and left cards. It only
+  // shows the form: nothing changes until the diner joins, when POST
+  // /parties replaces the old party in this browser. So a reload, a prefetch
+  // or a link preview is harmless, and a party that doesn't join still sees
+  // its card at /.
   routes.get("/join-again", async (c) => {
     const token = getCookie(c, "party");
     const found = token ? await findParty(store, env, token) : undefined;
-    // Only a finished party can join again; anyone else has nothing to
-    // start over, so they go back to /.
-    if (found?.state.kind !== "done") return c.redirect("/", 303);
+    // Only a party that finished or left can join again; anyone else has
+    // nothing to start over, so they go back to /.
+    if (!found || holdsPlace(found.state)) return c.redirect("/", 303);
     // Most likely the same diner, so their name and email are filled in.
     // The size is asked again: the group may not be the same this time.
     const { name, email } = found.party;
@@ -92,10 +93,11 @@ export function waitlistRoutes(store: WaitlistStore, env: Environment): Hono {
     // neither change the party's details nor add a second place in the
     // queue; someone joining for another group uses another phone. The
     // diner goes back to their card, which shows the party they hold. A
-    // party whose meal is over holds nothing, so its browser may join again.
+    // party whose meal is over, or that left, holds nothing, so its browser
+    // may join again.
     const own = getCookie(c, "party");
     const ownParty = own ? await findParty(store, env, own) : undefined;
-    if (ownParty && ownParty.state.kind !== "done") {
+    if (ownParty && holdsPlace(ownParty.state)) {
       return c.redirect("/", 303);
     }
     const form = await readJoinForm(c.req.parseBody());
@@ -139,14 +141,25 @@ export function waitlistRoutes(store: WaitlistStore, env: Environment): Hono {
     return c.redirect("/", 303);
   });
 
+  // Like check-in: whatever happened (left, or refused because there's no
+  // party, it's seated, it already left, or the save was busy), the card at /
+  // shows the party's real state. The cookie stays, so / shows the left card
+  // with its "Join the waitlist again" link, as it does for a finished party.
+  routes.post("/leave", async (c) => {
+    const token = getCookie(c, "party");
+    if (token) await leaveWaitlist(store, env, token);
+    return c.redirect("/", 303);
+  });
+
   // The token is 128 random bits, so the link is the key to the party:
   // whoever has it can act for the party, which is how a group shares one.
   // It never replaces this browser's own party: opening a friend's link
-  // mustn't lose your own place. A party whose meal is over has no place to
-  // lose, so a link may replace it. Instead of quietly redirecting, the diner
-  // who tapped the link is told why they see their own party, not the one
-  // they opened. The page is answered at the link's URL, so no flag or
-  // extra cookie carries the notice, and a reload repeats a harmless GET.
+  // mustn't lose your own place. A party whose meal is over, or that left,
+  // has no place to lose, so a link may replace it. Instead of quietly
+  // redirecting, the diner who tapped the link is told why they see their
+  // own party, not the one they opened. The page is answered at the link's
+  // URL, so no flag or extra cookie carries the notice, and a reload repeats
+  // a harmless GET.
   routes.get("/party/:token", async (c) => {
     const own = getCookie(c, "party");
     const token = c.req.param("token");
@@ -154,7 +167,7 @@ export function waitlistRoutes(store: WaitlistStore, env: Environment): Hono {
       own !== undefined && own !== token
         ? await findParty(store, env, own)
         : undefined;
-    if (ownParty && ownParty.state.kind !== "done") {
+    if (ownParty && holdsPlace(ownParty.state)) {
       return c.html(
         toHtml(
           <WaitlistPage
@@ -189,6 +202,12 @@ export function waitlistRoutes(store: WaitlistStore, env: Environment): Hono {
   });
 
   return routes;
+}
+
+// Waiting, ready or seated: the party still has a place this browser
+// mustn't lose. A party that finished or left has none.
+function holdsPlace(state: PartyState): boolean {
+  return state.kind !== "done" && state.kind !== "left";
 }
 
 // The site's address as this request reached it, so a shared link points

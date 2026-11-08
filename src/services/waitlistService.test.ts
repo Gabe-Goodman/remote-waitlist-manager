@@ -1,5 +1,5 @@
-// The use cases. The retry loop runs with a plain stub; joining and
-// checking in run against the real MongoDB from Compose, one fresh
+// The use cases. The retry loop runs with a plain stub; joining, checking
+// in and leaving run against the real MongoDB from Compose, one fresh
 // collection per test.
 import { randomUUID } from "node:crypto";
 import { describe, expect, test } from "vitest";
@@ -12,6 +12,7 @@ import {
 import {
   checkInParty,
   joinWaitlist,
+  leaveWaitlist,
   retryOnConflict,
 } from "./waitlistService.js";
 
@@ -277,5 +278,72 @@ describe("checking in", () => {
       ok: false,
       reason: "already-checked-in",
     });
+  });
+});
+
+describe("leaving", () => {
+  test("takes a party off the waitlist and saves it", async () => {
+    const store = await emptyStore();
+    const ana = await joined(store, "Ana", 2);
+
+    const outcome = await leaveWaitlist(store, env, ana.token);
+
+    expect(outcome).toEqual({ ok: true, party: { ...ana, leftAt: env.now() } });
+    const { waitlist } = await store.load();
+    expect(waitlist.parties[0]?.leftAt).toEqual(env.now());
+  });
+
+  test("refuses a party that has checked in, without saving anything", async () => {
+    const store = await emptyStore();
+    const ana = await joined(store, "Ana", 2);
+    await checkInParty(store, env, ana.token);
+    const before = await store.load();
+
+    const outcome = await leaveWaitlist(store, env, ana.token);
+
+    expect(outcome).toEqual({ ok: false, reason: "seated" });
+    expect(await store.load()).toEqual(before);
+  });
+
+  test("refuses a party that has already left", async () => {
+    const store = await emptyStore();
+    const ana = await joined(store, "Ana", 2);
+    await leaveWaitlist(store, env, ana.token);
+
+    const outcome = await leaveWaitlist(store, env, ana.token);
+
+    expect(outcome).toEqual({ ok: false, reason: "already-left" });
+  });
+
+  test("refuses a token that isn't on the waitlist", async () => {
+    const store = await emptyStore();
+    await joined(store, "Ana", 2);
+
+    const outcome = await leaveWaitlist(store, env, "no-such-token");
+
+    expect(outcome).toEqual({ ok: false, reason: "not-found" });
+  });
+
+  test("lets a party either check in or leave, not both, when both happen at once", async () => {
+    const store = await emptyStore();
+    const ana = await joined(store, "Ana", 2);
+
+    const [checkedIn, left] = await Promise.all([
+      checkInParty(store, env, ana.token),
+      leaveWaitlist(store, env, ana.token),
+    ]);
+
+    const { waitlist } = await store.load();
+    const stored = waitlist.parties[0];
+    if (checkedIn.ok) {
+      expect(left).toEqual({ ok: false, reason: "seated" });
+      expect(stored?.leftAt).toBeUndefined();
+    } else {
+      // A party that has left is no longer ready, so its check-in is
+      // refused as not ready.
+      expect(checkedIn).toEqual({ ok: false, reason: "not-ready" });
+      expect(left.ok).toBe(true);
+      expect(stored?.checkedInAt).toBeUndefined();
+    }
   });
 });
