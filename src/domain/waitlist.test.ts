@@ -5,6 +5,7 @@ import {
   isDone,
   isInService,
   join,
+  leave,
   partiesWaiting,
   partyPlace,
   partyState,
@@ -575,5 +576,121 @@ describe("checking in", () => {
     expect(
       partyState(result.waitlist, "token-Ben", secondsFromNow(18)),
     ).toEqual({ kind: "ready" });
+  });
+});
+
+describe("leaving", () => {
+  const now = new Date("2026-11-07T18:00:00Z");
+  const secondsFromNow = (seconds: number) =>
+    new Date(now.getTime() + seconds * 1000);
+
+  test("lets a waiting party leave", () => {
+    const waitlist = {
+      parties: [
+        partyNamed("Ana", { size: 8 }),
+        partyNamed("Ben", { size: 3 }),
+        partyNamed("Cy"),
+      ],
+    };
+
+    const result = leave(waitlist, "token-Ben", now);
+
+    if (!result.ok) throw new Error(`leave refused: ${result.reason}`);
+    expect(result.party.leftAt).toEqual(now);
+    expect(result.waitlist.parties.map((p) => p.name)).toEqual([
+      "Ana",
+      "Ben",
+      "Cy",
+    ]);
+    expect(partyState(result.waitlist, "token-Ben", now)).toEqual({
+      kind: "left",
+    });
+  });
+
+  test("frees a ready party's seats when it leaves", () => {
+    const waitlist = {
+      parties: [partyNamed("Ana", { size: 8 }), partyNamed("Ben", { size: 3 })],
+    };
+
+    const result = leave(waitlist, "token-Ana", now);
+
+    if (!result.ok) throw new Error(`leave refused: ${result.reason}`);
+    expect(partyState(result.waitlist, "token-Ben", now)).toEqual({
+      kind: "ready",
+    });
+  });
+
+  test("doesn't count a party that left as ahead of anyone", () => {
+    const waitlist = {
+      parties: [
+        partyNamed("Ben", { leftAt: now }),
+        partyNamed("Cy"),
+        partyNamed("Ana"),
+      ],
+    };
+
+    expect(partyPlace(waitlist, "token-Ana")?.ahead).toBe(1);
+    expect(partiesWaiting(waitlist)).toBe(2);
+  });
+
+  test("lets the email of a party that left join again, at the back of the queue", () => {
+    const waitlist = {
+      parties: [partyNamed("Ana", { leftAt: now }), partyNamed("Ben")],
+    };
+
+    const result = join(
+      waitlist,
+      { ...valid, email: "ana@example.com" },
+      { now: secondsFromNow(1), token: "token-ana-again" },
+    );
+
+    if (!result.ok) throw new Error(`join refused: ${result.reason}`);
+    expect(result.waitlist.parties.map((p) => p.token)).toEqual([
+      "token-Ana",
+      "token-Ben",
+      "token-ana-again",
+    ]);
+  });
+
+  test("refuses to let a party that has checked in leave", () => {
+    const waitlist = {
+      parties: [partyNamed("Ana", { size: 4, checkedInAt: now })],
+    };
+
+    for (const at of [secondsFromNow(1), secondsFromNow(12)]) {
+      expect(leave(waitlist, "token-Ana", at)).toEqual({
+        ok: false,
+        reason: "seated",
+      });
+    }
+  });
+
+  test("refuses a party that has already left", () => {
+    const waitlist = { parties: [partyNamed("Ana", { leftAt: now })] };
+
+    expect(leave(waitlist, "token-Ana", secondsFromNow(1))).toEqual({
+      ok: false,
+      reason: "already-left",
+    });
+  });
+
+  test("refuses a token that isn't on the waitlist", () => {
+    const waitlist = { parties: [partyNamed("Ana")] };
+
+    expect(leave(waitlist, "token-nobody", now)).toEqual({
+      ok: false,
+      reason: "not-found",
+    });
+  });
+
+  test("never changes the waitlist it is given", () => {
+    const waitlist = { parties: [partyNamed("Ana"), partyNamed("Ben")] };
+
+    leave(waitlist, "token-Ana", now);
+
+    expect(waitlist.parties.map((p) => p.leftAt)).toEqual([
+      undefined,
+      undefined,
+    ]);
   });
 });

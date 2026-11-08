@@ -4,6 +4,7 @@ import { setTimeout as sleep } from "node:timers/promises";
 import {
   checkIn,
   join,
+  leave,
   partiesWaiting,
   partyState,
   type FieldErrors,
@@ -29,6 +30,10 @@ export type CheckInOutcome =
       reason: "not-found" | "not-ready" | "already-checked-in" | "busy";
     };
 
+export type LeaveOutcome =
+  | { ok: true; party: Party }
+  | { ok: false; reason: "not-found" | "seated" | "already-left" | "busy" };
+
 /**
  * Runs `attempt` (one load → rule → save) until it doesn't conflict, at most
  * `maxAttempts` times. Exceptions are never retried: only a conflict means
@@ -48,7 +53,7 @@ export async function retryOnConflict<T>(
   return "busy";
 }
 
-// Enough for a burst of simultaneous joins or check-ins; past it, the
+// Enough for a burst of simultaneous joins, check-ins or leaves; past it, the
 // request ends as busy rather than retrying forever.
 const maxAttempts = 10;
 
@@ -91,6 +96,29 @@ export async function checkInParty(
   const outcome = await retryOnConflict(async () => {
     const { waitlist, version } = await store.load();
     const result = checkIn(waitlist, token, env.now());
+    if (!result.ok) return result;
+
+    const saved = await store.saveIfVersion(result.waitlist, version);
+    if (saved === "conflict") return "conflict";
+    return { ok: true as const, party: result.party };
+  }, maxAttempts);
+
+  return outcome === "busy" ? { ok: false, reason: "busy" } : outcome;
+}
+
+/**
+ * Takes the party off the waitlist. Each attempt reloads and re-runs the
+ * rule, so leaving is decided on the waitlist the save replaces: a party
+ * can't both check in and leave.
+ */
+export async function leaveWaitlist(
+  store: WaitlistStore,
+  env: Environment,
+  token: string,
+): Promise<LeaveOutcome> {
+  const outcome = await retryOnConflict(async () => {
+    const { waitlist, version } = await store.load();
+    const result = leave(waitlist, token, env.now());
     if (!result.ok) return result;
 
     const saved = await store.saveIfVersion(result.waitlist, version);

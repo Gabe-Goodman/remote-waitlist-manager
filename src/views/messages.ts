@@ -33,6 +33,10 @@ export const messages = {
   checkInButton: "Check in",
   enjoyMeal: "Enjoy your meal.",
   joinAgain: "Join the waitlist again",
+  leave: "Leave the waitlist",
+  leaveWarning:
+    "Your place can't be restored. If you join again, you'll go to the back of the waitlist.",
+  leaveButton: "Yes, leave",
   partyLinkLabel: "Your party's link",
   partyLinkHint:
     "Share it with the rest of your party, or open it on another device. Anyone with this link can see your place on the waitlist and check in for you.",
@@ -50,6 +54,7 @@ export const cardTitles: Record<PartyState["kind"], string> = {
   ready: "Your table is ready!",
   "in-service": "You're checked in.",
   done: "Thanks for dining with us.",
+  left: "You've left the waitlist.",
 };
 
 /** Form-level notices, shown in the box at the top of the form. */
