@@ -302,6 +302,55 @@ function partyCookie(response: Response): string {
   return response.headers.get("Set-Cookie")?.split(";")[0] ?? "";
 }
 
+/** The value of the form's hidden joinKey field; undefined if it has none. */
+function joinKeyIn(html: string): string | undefined {
+  const tag = html.match(/<input [^>]*name="joinKey"[^>]*>/)?.[0];
+  if (!tag?.includes('type="hidden"')) return undefined;
+  return tag.match(/value="([^"]*)"/)?.[1];
+}
+
+describe("double taps", () => {
+  test("lands a double tap on the same party", async () => {
+    const app = await routes();
+    const form = { ...ana, joinKey: "key-1" };
+
+    const first = await postJoin(app, form);
+    const second = await postJoin(app, form);
+
+    for (const response of [first, second]) {
+      expect(response.status).toBe(303);
+      expect(response.headers.get("Location")).toBe("/");
+    }
+    expect(partyCookie(first)).toMatch(/^party=.+/);
+    expect(partyCookie(second)).toBe(partyCookie(first));
+    expect(await (await app.request("/")).text()).toContain(
+      "1 party is waiting",
+    );
+  });
+
+  test("gives each fresh form a new join key", async () => {
+    const app = await routes();
+
+    const first = joinKeyIn(await (await app.request("/")).text());
+    const second = joinKeyIn(await (await app.request("/")).text());
+
+    expect(first).toMatch(/.+/);
+    expect(second).toMatch(/.+/);
+    expect(second).not.toBe(first);
+  });
+
+  test("keeps the join key when the form comes back with errors", async () => {
+    const response = await postJoin(await routes(), {
+      ...ana,
+      email: "not-an-email",
+      joinKey: "key-x",
+    });
+
+    expect(response.status).toBe(422);
+    expect(joinKeyIn(await response.text())).toBe("key-x");
+  });
+});
+
 describe("your place in the queue", () => {
   test("shows your place after joining", async () => {
     const app = await routes();
@@ -660,6 +709,17 @@ describe("joining again", () => {
     expect(await cardHtml(app, anasCookie)).toContain(
       "<h1>Thanks for dining with us.</h1>",
     );
+  });
+
+  test("gives the join-again form a new join key", async () => {
+    const { app, clock, anasCookie } = await checkedInParty();
+    clock.advance(6000);
+
+    const response = await app.request("/join-again", {
+      headers: { Cookie: anasCookie },
+    });
+
+    expect(joinKeyIn(await response.text())).toMatch(/.+/);
   });
 
   test("sends an active party back to its card from /join-again, keeping its place", async () => {
