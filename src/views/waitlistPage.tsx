@@ -11,6 +11,7 @@ import {
   type PartyState,
 } from "../domain/waitlist.js";
 import { copyLinkJs, liveCardJs } from "./browserFiles.js";
+import { toHtml } from "./html.js";
 import { Layout } from "./layout.js";
 import {
   cardTitles,
@@ -34,43 +35,41 @@ const partySizes = Array.from({ length: maxPartySize }, (_, i) => i + 1);
 // Either the party's card, or the join form with the waiting count: the
 // form can't be shown without the count. The form always comes with its
 // values, joinKey included: the route makes the key, views make no tokens.
-type WaitlistPageProps =
-  | {
-      party: Party;
-      state: PartyState;
-      origin: string;
-      timeZone: string;
-      notice?: "other-party";
-    }
-  | {
-      party?: undefined;
-      waiting: number;
-      // What the form shows: empty for a newcomer, what the diner typed when
-      // a join was refused, or a finished party's name and email.
-      values: JoinForm;
-      // A refused join's field errors and the notice above the form.
-      errors?: FieldErrors;
-      notice?: Notice;
-    };
+type PartyPageProps = {
+  party: Party;
+  state: PartyState;
+  origin: string;
+  timeZone: string;
+};
+type JoinPageProps = {
+  party?: undefined;
+  waiting: number;
+  // What the form shows: empty for a newcomer, what the diner typed when a
+  // join was refused, or a finished party's name and email.
+  values: JoinForm;
+  // A refused join's field errors and the notice above the form.
+  errors?: FieldErrors;
+  notice?: Notice;
+};
+type WaitlistPageProps = PartyPageProps | JoinPageProps;
 
-export function WaitlistPage(props: WaitlistPageProps) {
+// The pages as HTML, ready to send: the routes pass data and get a string
+// back, so everything about rendering stays in views/.
+export function partyPage(props: PartyPageProps): string {
+  return toHtml(<WaitlistPage {...props} />);
+}
+
+export function joinPage(props: JoinPageProps): string {
+  return toHtml(<WaitlistPage {...props} />);
+}
+
+function WaitlistPage(props: WaitlistPageProps) {
   if (props.party) {
     return (
       <Layout
         title={cardTitles[props.state.kind]}
         script={`${copyLinkJs}\n${liveCardJs}`}
       >
-        {/* role="status", not "alert": this informs, it isn't an error. */}
-        {props.notice && (
-          <div
-            role="status"
-            className="alert"
-            data-variant="info"
-            data-layout="text-only"
-          >
-            {messages.otherPartyLink}
-          </div>
-        )}
         <PartyCard
           party={props.party}
           state={props.state}

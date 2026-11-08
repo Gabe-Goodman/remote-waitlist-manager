@@ -1,9 +1,15 @@
 // The page shown when something goes wrong: what happened and one thing to
 // do about it, never the error's details.
+import { toHtml } from "./html.js";
 import { Layout } from "./layout.js";
 import { messages } from "./messages.js";
 
-export function ErrorPage() {
+// The page as HTML, ready to send.
+export function errorPage(): string {
+  return toHtml(<ErrorPage />);
+}
+
+function ErrorPage() {
   return (
     <Layout title={messages.errorTitle}>
       <h1>{messages.errorTitle}</h1>

@@ -876,3 +876,27 @@ describe("checking in on time", () => {
     ]);
   });
 });
+
+describe("replaying the past with later facts", () => {
+  const now = new Date("2026-11-07T18:00:00Z");
+  const secondsFromNow = (seconds: number) =>
+    new Date(now.getTime() + seconds * 1000);
+
+  test("doesn't let a check-in hold seats before it happened, which would bring an expired party back", () => {
+    // Ana (10) is ready at 0 and runs out of time at 60. Ben (1) joins at
+    // 70, is ready at once and checks in at 75: his seat is taken from 75,
+    // not from the start of the evening.
+    const parties = [
+      partyNamed("Ana", { size: 10 }),
+      partyNamed("Ben", {
+        size: 1,
+        joinedAt: secondsFromNow(70),
+        checkedInAt: secondsFromNow(75),
+      }),
+    ];
+
+    expect(partyState({ parties }, "token-Ana", secondsFromNow(80))).toEqual({
+      kind: "expired",
+    });
+  });
+});

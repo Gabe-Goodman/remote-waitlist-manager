@@ -3,7 +3,7 @@
 // page's <head>; it isn't served at a URL of its own. Without JavaScript the
 // page still shows the right state on every load.
 //
-// The loop: every 2 seconds, fetch the card from GET /card, one request at a
+// The loop: every 2 seconds, fetch the card from <page>/card, one request at a
 // time. If it changed, put the new card on screen. If the fetch fails, keep
 // the card already shown. When the page becomes visible again (a phone taken
 // out of a pocket), fetch at once. Once the card can't change any more (done,
@@ -29,7 +29,10 @@
     fetching = true;
     let keepGoing = true;
     try {
-      const response = await fetch("/card", { cache: "no-store" });
+      // The card lives under the party's page: /party/<token>/card.
+      const response = await fetch(`${location.pathname}/card`, {
+        cache: "no-store",
+      });
       // No party any more: there is no card to keep up to date.
       if (response.status === 204) keepGoing = false;
       else if (response.ok) showCard(await response.text());
