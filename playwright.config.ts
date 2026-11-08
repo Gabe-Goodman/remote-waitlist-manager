@@ -11,22 +11,30 @@ export default defineConfig({
     baseURL,
     // JavaScript off by default: the suite passing proves the app is
     // server-rendered and works without client code. Only copyLink.spec.ts
-    // turns it on, for the Copy button.
+    // and liveCard.spec.ts turn it on, for the Copy button and the card's
+    // live updates.
     javaScriptEnabled: false,
   },
   // Diners use phones, so tests run in a phone-sized browser.
-  // The check-in journey needs an empty restaurant: the other journeys'
-  // parties would hold seats and change who is ready. So it runs first,
-  // on its own, and the rest wait for it.
+  // The live-card and check-in journeys each need an empty restaurant: other
+  // parties would hold seats and change who is ready. So each runs in a
+  // project of its own, one after the other, and the rest wait for them:
+  // files in one project may run at the same time.
   projects: [
+    {
+      name: "live-card",
+      testMatch: "liveCard.spec.ts",
+      use: { ...devices["Pixel 7"] },
+    },
     {
       name: "check-in",
       testMatch: "checkIn.spec.ts",
+      dependencies: ["live-card"],
       use: { ...devices["Pixel 7"] },
     },
     {
       name: "phone",
-      testIgnore: "checkIn.spec.ts",
+      testIgnore: /(checkIn|liveCard)\.spec\.ts/,
       dependencies: ["check-in"],
       use: { ...devices["Pixel 7"] },
     },

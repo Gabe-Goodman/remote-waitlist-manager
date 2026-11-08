@@ -1,6 +1,6 @@
-// The HTML shell every page shares: phone-sized and readable. The only
-// script is the party card's, for its Copy button; every page works
-// without it.
+// The HTML shell every page shares: phone-sized and readable. A page may
+// pass a script for its <head>; only the card page does, for its Copy button
+// and its live update, and every page works without it.
 import { readFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import type { ReactNode } from "react";
@@ -52,22 +52,21 @@ const styles = `
      both sides, so it lines up with the link it describes. */
   #party-link-hint { margin-top: var(--spacing-l1); font: var(--body-2);
     padding-inline: var(--spacing-l3); }
-  /* The Copy icon sits inside the link's field at its right edge. Only once
-     the script has shown it does the field make room, so without JavaScript
-     there is no empty gap. */
+  /* The Copy icon sits inside the link's field at its right edge. Only under
+     the class the page's script sets is it shown and does the field make
+     room, so without JavaScript there is no icon and no empty gap. */
   .copy-field { position: relative; }
   /* By id: TableKit's padding rule on inputs is more specific than a class. */
-  .copy-field[data-copy="on"] #party-link { padding-right: 2.5rem; }
+  .js .copy-field #party-link { padding-right: 2.5rem; }
   /* A long link ends in "…" rather than a character cut in half. */
   #party-link { text-overflow: ellipsis; }
   /* A 40px tap target, more specific than the page-wide button rule. */
   .copy-field button { position: absolute; right: 0.125rem; top: 50%;
     transform: translateY(-50%); width: 2.5rem; height: 2.5rem; margin-top: 0;
-    display: flex; align-items: center; justify-content: center;
+    display: none; align-items: center; justify-content: center;
     background: none; color: var(--text-subtle); cursor: pointer;
     border-radius: var(--border-radius-small); }
-  /* Its display: flex would otherwise beat the hidden attribute. */
-  .copy-field button[hidden] { display: none; }
+  .js .copy-field button { display: flex; }
   .copy-field .icon-check, .copy-field[data-copied] .icon-copy { display: none; }
   .copy-field[data-copied] .icon-check { display: block; }
   /* TableKit leaves <summary> unstyled; here it reads as a quiet link, like
@@ -82,9 +81,11 @@ const styles = `
 
 export function Layout({
   title,
+  script,
   children,
 }: {
   title: string;
+  script?: string;
   children: ReactNode;
 }) {
   return (
@@ -97,6 +98,8 @@ export function Layout({
             selectors are as specific as TableKit's. */}
         <style>{tablekitCss}</style>
         <style>{styles}</style>
+        {/* In the <head>, so it runs before the body is drawn. */}
+        {script && <script>{script}</script>}
       </head>
       <body>
         <main>{children}</main>

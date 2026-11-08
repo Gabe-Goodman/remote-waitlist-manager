@@ -500,22 +500,28 @@ describe("the party's link", () => {
     expect(joinForm).not.toContain("/party/");
   });
 
-  test("offers a Copy button only to browsers that run the script", async () => {
+  test("shows the Copy button only when the page's script runs, and keeps scripts out of the card", async () => {
     const app = await routes();
     const anasCookie = partyCookie(await postJoin(app, ana));
 
-    const card = await (
+    const page = await (
       await app.request("/", { headers: { Cookie: anasCookie } })
     ).text();
+    const card = await (await getCard(app, anasCookie)).text();
     const joinForm = await (await app.request("/")).text();
 
+    const head = /<head>[\s\S]*<\/head>/.exec(page)?.[0] ?? "";
+    expect(head).toMatch(
+      /<script>[\s\S]*document\.documentElement\.classList\.add\("js"\)[\s\S]*<\/script>/,
+    );
+    expect(head).toMatch(/<script>[\s\S]*copy-link[\s\S]*<\/script>/);
     expect(card).toMatch(
-      /<button type="button" id="copy-link" class="custom" aria-label="Copy link" hidden=""><svg aria-hidden="true"/,
+      /<button type="button" id="copy-link" class="custom" aria-label="Copy link"><svg aria-hidden="true"/,
     );
     expect(card).toContain(
       '<span role="status" id="copy-status" class="visually-hidden"></span>',
     );
-    expect(card).toMatch(/<script>[\s\S]*copy-link[\s\S]*<\/script>/);
+    expect(card).not.toContain("<script");
     expect(joinForm).not.toContain("<script");
   });
 });
@@ -875,6 +881,80 @@ describe("leaving", () => {
     expect(await cardHtml(app, bensCookie)).toContain(
       "<h1>Your table is ready!</h1>",
     );
+  });
+});
+
+/** GET /card, the way the card's live updates fetch it. */
+function getCard(app: Hono, cookie?: string) {
+  return app.request("/card", { headers: cookie ? { Cookie: cookie } : {} });
+}
+
+describe("the card on its own", () => {
+  test("sends just the party's card, the same one the page shows", async () => {
+    const app = await routes();
+    const anasCookie = partyCookie(await postJoin(app, ana));
+
+    const response = await getCard(app, anasCookie);
+    const card = await response.text();
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get("Content-Type")).toContain("text/html");
+    expect(card).not.toMatch(/^<!DOCTYPE/i);
+    expect(card).not.toContain("<html");
+    expect(card).not.toContain("<style");
+    expect(card).toMatch(
+      /^<section class="card" data-state="ready">[\s\S]*<\/section>$/,
+    );
+    const page = await cardHtml(app, anasCookie);
+    expect(page.match(/<section class="card"[\s\S]*?<\/section>/)?.[0]).toBe(
+      card,
+    );
+  });
+
+  test("follows the party's state", async () => {
+    const app = await routes();
+    const anasCookie = partyCookie(await postJoin(app, ana));
+    await postCheckIn(app, anasCookie);
+
+    const card = await (await getCard(app, anasCookie)).text();
+
+    expect(card).toContain("You&#x27;re checked in.");
+    expect(card).toMatch(/^<section class="card" data-state="in-service">/);
+  });
+
+  test("keeps the card up to date only on the card page", async () => {
+    const app = await routes();
+    const anasCookie = partyCookie(await postJoin(app, ana));
+
+    const page = await cardHtml(app, anasCookie);
+    const card = await (await getCard(app, anasCookie)).text();
+    const joinForm = await (await app.request("/")).text();
+
+    const head = /<head>[\s\S]*<\/head>/.exec(page)?.[0] ?? "";
+    expect(head).toMatch(/<script>[\s\S]*fetch\("\/card"[\s\S]*<\/script>/);
+    expect(card).not.toContain("<script");
+    expect(joinForm).not.toContain("<script");
+  });
+
+  test("sends nothing to a browser without a party", async () => {
+    const app = await routes();
+
+    const noCookie = await getCard(app);
+    const unknownParty = await getCard(app, "party=nobody");
+
+    for (const response of [noCookie, unknownParty]) {
+      expect(response.status).toBe(204);
+      expect(await response.text()).toBe("");
+    }
+  });
+
+  test("tells browsers not to keep the card", async () => {
+    const app = await routes();
+    const anasCookie = partyCookie(await postJoin(app, ana));
+
+    const response = await getCard(app, anasCookie);
+
+    expect(response.headers.get("Cache-Control")).toBe("no-store");
   });
 });
 

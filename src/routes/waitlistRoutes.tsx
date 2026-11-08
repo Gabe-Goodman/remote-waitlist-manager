@@ -16,7 +16,8 @@ import {
 } from "../services/waitlistService.js";
 import type { WaitlistStore } from "../storage/waitlistStore.js";
 import { ErrorPage } from "../views/errorPage.js";
-import { toHtml } from "../views/html.js";
+import { toFragment, toHtml } from "../views/html.js";
+import { PartyCard } from "../views/partyCard.js";
 import { WaitlistPage } from "../views/waitlistPage.js";
 
 export function waitlistRoutes(store: WaitlistStore, env: Environment): Hono {
@@ -61,6 +62,23 @@ export function waitlistRoutes(store: WaitlistStore, env: Environment): Hono {
     // refused join's form keeps the key it was sent with instead.
     const values = { name: "", email: "", size: "", joinKey: env.newToken() };
     return c.html(toHtml(<WaitlistPage waiting={waiting} values={values} />));
+  });
+
+  // The card on its own, which the card's live updates fetch. The page and
+  // this route render the same component, so an update can't show a card
+  // the page wouldn't.
+  routes.get("/card", async (c) => {
+    const token = getCookie(c, "party");
+    const found = token ? await findParty(store, env, token) : undefined;
+    // No card to send: a page without a party is the join form, which has
+    // no card to update. A dead cookie is left for / to clear.
+    if (!found) return c.body(null, 204);
+    const { party, state } = found;
+    return c.html(
+      toFragment(
+        <PartyCard party={party} state={state} origin={siteOrigin(c)} />,
+      ),
+    );
   });
 
   // The "Join the waitlist again" link on the done and left cards. It only
