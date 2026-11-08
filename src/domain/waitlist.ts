@@ -95,7 +95,7 @@ export type JoinContext = { now: Date; token: string };
  * `created: false` means the form had already made this party: the
  * waitlist is returned unchanged and there is nothing to save.
  */
-export type JoinResult =
+export type JoinWaitlistResult =
   | { ok: true; waitlist: Waitlist; party: Party; created: boolean }
   | { ok: false; reason: "invalid"; errors: FieldErrors }
   | { ok: false; reason: "duplicate" };
@@ -105,11 +105,11 @@ export type JoinResult =
  * an active party already has its email. A form that already made an
  * active party returns that party instead.
  */
-export function join(
+export function joinWaitlist(
   waitlist: Waitlist,
   form: JoinForm,
   context: JoinContext,
-): JoinResult {
+): JoinWaitlistResult {
   // Checked before validating: a matching key means this submission already
   // succeeded, whatever the copy sent now says. Only an active party counts,
   // so a finished party's old form can't bring it back.
@@ -293,7 +293,7 @@ export function checkIn(
   return { ok: true, waitlist: { parties }, party: checkedIn };
 }
 
-export type LeaveResult =
+export type LeaveWaitlistResult =
   | { ok: true; waitlist: Waitlist; party: Party }
   | { ok: false; reason: "not-found" | "seated" | "already-left" };
 
@@ -302,11 +302,11 @@ export type LeaveResult =
  * with its `leftAt`, a fact like every other, rather than being deleted. A
  * party that has checked in has no place in the queue left to give up.
  */
-export function leave(
+export function leaveWaitlist(
   waitlist: Waitlist,
   token: string,
   now: Date,
-): LeaveResult {
+): LeaveWaitlistResult {
   const party = waitlist.parties.find((p) => p.token === token);
   if (!party) return { ok: false, reason: "not-found" };
   if (party.leftAt) return { ok: false, reason: "already-left" };

@@ -24,6 +24,7 @@ src/
 │   ├── updateScript.ts      the card page's live update: fetches /card every 2 s and swaps the card when it changes
 │   ├── errorPage.tsx        the friendly page when something goes wrong
 │   ├── layout.tsx           the HTML shell every page shares; carries TableKit's classless stylesheet inline
+│   ├── pageStyles.ts        the page's own CSS: layout rules on top of TableKit
 │   ├── messages.ts          every word a diner reads
 │   └── html.ts              toHtml: a page as an HTML document
 └── server.ts                wiring: settings, MongoDB connection, creating the waitlist, routes, graceful shutdown

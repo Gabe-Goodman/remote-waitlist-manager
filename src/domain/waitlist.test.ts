@@ -4,8 +4,8 @@ import {
   checkIn,
   isDone,
   isInService,
-  join,
-  leave,
+  joinWaitlist,
+  leaveWaitlist,
   partiesWaiting,
   partyPlace,
   partyState,
@@ -114,14 +114,14 @@ describe("joining", () => {
   test("adds a party at the back of the queue", () => {
     const waitlist = { parties: [partyNamed("Ben")] };
 
-    const result = join(waitlist, valid, context);
+    const result = joinWaitlist(waitlist, valid, context);
 
     if (!result.ok) throw new Error(`join refused: ${JSON.stringify(result)}`);
     expect(result.waitlist.parties.map((p) => p.name)).toEqual(["Ben", "Ana"]);
   });
 
   test("gives the party the token and join time it is handed", () => {
-    const result = join({ parties: [] }, valid, context);
+    const result = joinWaitlist({ parties: [] }, valid, context);
 
     if (!result.ok) throw new Error(`join refused: ${JSON.stringify(result)}`);
     expect(result.party).toEqual({
@@ -134,7 +134,11 @@ describe("joining", () => {
   });
 
   test("refuses an invalid form", () => {
-    const result = join({ parties: [] }, { ...valid, size: "0" }, context);
+    const result = joinWaitlist(
+      { parties: [] },
+      { ...valid, size: "0" },
+      context,
+    );
 
     expect(result).toEqual({
       ok: false,
@@ -146,9 +150,9 @@ describe("joining", () => {
   test("never changes the waitlist it is given", () => {
     const waitlist = { parties: [partyNamed("Ben")] };
 
-    join(waitlist, valid, context);
-    join(waitlist, { ...valid, size: "0" }, context);
-    join(waitlist, { ...valid, email: "ben@example.com" }, context);
+    joinWaitlist(waitlist, valid, context);
+    joinWaitlist(waitlist, { ...valid, size: "0" }, context);
+    joinWaitlist(waitlist, { ...valid, email: "ben@example.com" }, context);
 
     expect(waitlist.parties.map((p) => p.name)).toEqual(["Ben"]);
   });
@@ -158,7 +162,7 @@ describe("never on the list twice", () => {
   test("refuses an email that is already on the waitlist", () => {
     const waitlist = { parties: [partyNamed("Ana")] };
 
-    const result = join(waitlist, valid, context);
+    const result = joinWaitlist(waitlist, valid, context);
 
     expect(result).toEqual({ ok: false, reason: "duplicate" });
   });
@@ -166,7 +170,7 @@ describe("never on the list twice", () => {
   test("treats the same email in different case or with spaces as a duplicate", () => {
     const waitlist = { parties: [partyNamed("Ana")] };
 
-    const result = join(
+    const result = joinWaitlist(
       waitlist,
       { ...valid, email: "  ANA@Example.com " },
       context,
@@ -181,7 +185,7 @@ describe("never on the list twice", () => {
       checkedInAt: new Date("2026-11-07T17:55:00Z"),
     });
 
-    const result = join({ parties: [finished] }, valid, context);
+    const result = joinWaitlist({ parties: [finished] }, valid, context);
 
     expect(result.ok).toBe(true);
   });
@@ -189,7 +193,7 @@ describe("never on the list twice", () => {
   test("still refuses the email of a party that is in service", () => {
     const seated = partyNamed("Ana", { size: 2, checkedInAt: context.now });
 
-    const result = join({ parties: [seated] }, valid, context);
+    const result = joinWaitlist({ parties: [seated] }, valid, context);
 
     expect(result).toEqual({ ok: false, reason: "duplicate" });
   });
@@ -197,7 +201,7 @@ describe("never on the list twice", () => {
   test("reports an invalid form as invalid, even when the email is taken", () => {
     const waitlist = { parties: [partyNamed("Ana")] };
 
-    const result = join(waitlist, { ...valid, size: "0" }, context);
+    const result = joinWaitlist(waitlist, { ...valid, size: "0" }, context);
 
     expect(result).toEqual({
       ok: false,
@@ -212,7 +216,11 @@ describe("the same form sent twice", () => {
     const ana = partyNamed("Ana", { joinKey: "key-1" });
     const waitlist = { parties: [ana] };
 
-    const result = join(waitlist, { ...valid, joinKey: "key-1" }, context);
+    const result = joinWaitlist(
+      waitlist,
+      { ...valid, joinKey: "key-1" },
+      context,
+    );
 
     if (!result.ok) throw new Error(`join refused: ${JSON.stringify(result)}`);
     expect(result.party).toBe(ana);
@@ -223,7 +231,7 @@ describe("the same form sent twice", () => {
   test("checks the join key before validating the form", () => {
     const ana = partyNamed("Ana", { joinKey: "key-1" });
 
-    const result = join(
+    const result = joinWaitlist(
       { parties: [ana] },
       { ...valid, name: "", joinKey: "key-1" },
       context,
@@ -240,7 +248,7 @@ describe("the same form sent twice", () => {
       joinKey: "key-1",
     });
 
-    const result = join(
+    const result = joinWaitlist(
       { parties: [finished] },
       { ...valid, joinKey: "key-1" },
       context,
@@ -253,7 +261,7 @@ describe("the same form sent twice", () => {
   });
 
   test("stores the join key on a new party", () => {
-    const result = join(
+    const result = joinWaitlist(
       { parties: [] },
       { ...valid, joinKey: "key-2" },
       context,
@@ -264,7 +272,7 @@ describe("the same form sent twice", () => {
   });
 
   test("joins as usual without a join key", () => {
-    const result = join({ parties: [] }, valid, context);
+    const result = joinWaitlist({ parties: [] }, valid, context);
 
     if (!result.ok) throw new Error(`join refused: ${JSON.stringify(result)}`);
     expect(result.created).toBe(true);
@@ -593,7 +601,7 @@ describe("leaving", () => {
       ],
     };
 
-    const result = leave(waitlist, "token-Ben", now);
+    const result = leaveWaitlist(waitlist, "token-Ben", now);
 
     if (!result.ok) throw new Error(`leave refused: ${result.reason}`);
     expect(result.party.leftAt).toEqual(now);
@@ -612,7 +620,7 @@ describe("leaving", () => {
       parties: [partyNamed("Ana", { size: 8 }), partyNamed("Ben", { size: 3 })],
     };
 
-    const result = leave(waitlist, "token-Ana", now);
+    const result = leaveWaitlist(waitlist, "token-Ana", now);
 
     if (!result.ok) throw new Error(`leave refused: ${result.reason}`);
     expect(partyState(result.waitlist, "token-Ben", now)).toEqual({
@@ -638,7 +646,7 @@ describe("leaving", () => {
       parties: [partyNamed("Ana", { leftAt: now }), partyNamed("Ben")],
     };
 
-    const result = join(
+    const result = joinWaitlist(
       waitlist,
       { ...valid, email: "ana@example.com" },
       { now: secondsFromNow(1), token: "token-ana-again" },
@@ -658,7 +666,7 @@ describe("leaving", () => {
     };
 
     for (const at of [secondsFromNow(1), secondsFromNow(12)]) {
-      expect(leave(waitlist, "token-Ana", at)).toEqual({
+      expect(leaveWaitlist(waitlist, "token-Ana", at)).toEqual({
         ok: false,
         reason: "seated",
       });
@@ -668,7 +676,7 @@ describe("leaving", () => {
   test("refuses a party that has already left", () => {
     const waitlist = { parties: [partyNamed("Ana", { leftAt: now })] };
 
-    expect(leave(waitlist, "token-Ana", secondsFromNow(1))).toEqual({
+    expect(leaveWaitlist(waitlist, "token-Ana", secondsFromNow(1))).toEqual({
       ok: false,
       reason: "already-left",
     });
@@ -677,7 +685,7 @@ describe("leaving", () => {
   test("refuses a token that isn't on the waitlist", () => {
     const waitlist = { parties: [partyNamed("Ana")] };
 
-    expect(leave(waitlist, "token-nobody", now)).toEqual({
+    expect(leaveWaitlist(waitlist, "token-nobody", now)).toEqual({
       ok: false,
       reason: "not-found",
     });
@@ -686,7 +694,7 @@ describe("leaving", () => {
   test("never changes the waitlist it is given", () => {
     const waitlist = { parties: [partyNamed("Ana"), partyNamed("Ben")] };
 
-    leave(waitlist, "token-Ana", now);
+    leaveWaitlist(waitlist, "token-Ana", now);
 
     expect(waitlist.parties.map((p) => p.leftAt)).toEqual([
       undefined,

@@ -6,6 +6,7 @@ import { serve } from "@hono/node-server";
 import { Hono } from "hono";
 import { MongoClient } from "mongodb";
 import { waitlistRoutes } from "./routes/waitlistRoutes.js";
+import { waitlistService } from "./services/waitlistService.js";
 import {
   waitlistStore,
   type WaitlistDocument,
@@ -34,7 +35,7 @@ const env = {
 };
 
 const app = new Hono();
-app.route("/", waitlistRoutes(store, env));
+app.route("/", waitlistRoutes(waitlistService(store, env)));
 
 const server = serve({ fetch: app.fetch, port }, (info) => {
   console.log(`Listening on http://localhost:${info.port}`);
