@@ -48,7 +48,13 @@ type WaitlistPageProps =
       origin: string;
       notice?: "other-party";
     }
-  | { party?: undefined; waiting: number; refused?: RefusedJoin };
+  | {
+      party?: undefined;
+      waiting: number;
+      refused?: RefusedJoin;
+      // What a finished party filled in last time, when it joins again.
+      values?: JoinForm;
+    };
 
 export function WaitlistPage(props: WaitlistPageProps) {
   if (props.party) {
@@ -75,7 +81,7 @@ export function WaitlistPage(props: WaitlistPageProps) {
   }
 
   const { waiting, refused } = props;
-  const values = refused?.values ?? noValues;
+  const values = refused?.values ?? props.values ?? noValues;
   const errors = refused?.errors ?? {};
   const nameError = errors.name && fieldErrorMessages.name[errors.name];
   const emailError = errors.email && fieldErrorMessages.email[errors.email];
