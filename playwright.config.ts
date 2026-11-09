@@ -1,12 +1,13 @@
 import { defineConfig, devices } from "@playwright/test";
 
 const baseURL = process.env.BASE_URL ?? "http://localhost:3000";
-// Each run starts from an empty waitlist: a party left over from an earlier
-// run would hold seats and change who is ready.
-const database = `e2e_${Date.now()}`;
 
 export default defineConfig({
   testDir: "e2e",
+  // Tests run against the built app in Docker Compose, as a reviewer runs it:
+  // started on an empty database before the tests and stopped after them,
+  // on every operating system (see globalSetup.ts).
+  globalSetup: "./e2e/globalSetup.ts",
   use: {
     baseURL,
     // JavaScript off by default: the suite passing proves the app is
@@ -39,13 +40,4 @@ export default defineConfig({
       use: { ...devices["Pixel 7"] },
     },
   ],
-  // Tests run against the built app in Docker Compose, as a reviewer runs it.
-  webServer: {
-    command: `MONGO_DB=${database} docker compose up --build`,
-    url: `${baseURL}/health`,
-    // Fail instead of silently testing whatever else is on port 3000
-    // (such as `npm run dev`), which isn't the built image.
-    reuseExistingServer: false,
-    timeout: 180_000,
-  },
 });
