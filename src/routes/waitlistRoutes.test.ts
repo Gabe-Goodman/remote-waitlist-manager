@@ -540,10 +540,15 @@ describe("checking in", () => {
 
     expect(html).toContain("<title>Your table is ready!</title>");
     expect(html).toContain("<h1>Your table is ready!</h1>");
-    // No time limit: the table is held until the party checks in or leaves.
-    expect(html).toContain('<p class="ahead">Check in now.</p>');
+    // Checking in starts the table's clock, so the card sends the diner to
+    // the host stand first: the party's details the host confirms are right
+    // under the line, and the Check-in button right under them. No time
+    // limit: the table is held until the party checks in or leaves.
+    expect(html).toContain(
+      '<p class="ahead">See your host.</p><p>Ana, party of 2</p>',
+    );
+    expect(html).not.toContain("Check in now");
     expect(html).not.toContain("hold it for");
-    expect(html).toContain("Ana, party of 2");
     expect(html).toContain(
       `<form action="${partyPath(anasCookie)}/check-in" method="post"><button type="submit">Check in</button></form>`,
     );
@@ -561,8 +566,10 @@ describe("checking in", () => {
     const html = await partyPageHtml(app, bensCookie);
 
     expect(html).toContain("<h1>You&#x27;re on the waitlist</h1>");
+    // Short enough to read at a glance; the join page already says to keep
+    // the page open.
     expect(html).toContain(
-      "You&#x27;re next. Stay close and keep this page open.",
+      '<p class="ahead">You&#x27;re next. Stay close.</p>',
     );
     expect(html).not.toContain("ahead of you");
     expect(html).not.toContain('/check-in"');
@@ -579,7 +586,8 @@ describe("checking in", () => {
     const html = await partyPageHtml(app, anasCookie);
     expect(html).toContain("<title>You&#x27;re checked in</title>");
     expect(html).toContain("<h1>You&#x27;re checked in</h1>");
-    // No clock on the meal: nobody likes being timed at dinner.
+    // With the host and being seated: the card can just be warm. No clock
+    // on the meal: nobody likes being timed at dinner.
     expect(html).toContain('<p class="ahead">Enjoy your meal.</p>');
     expect(html).toContain("Ana, party of 2");
     expect(html).not.toContain('/check-in"');
@@ -1316,7 +1324,7 @@ describe("icons", () => {
     const html = await partyPageHtml(app, anasCookie);
 
     expect(html).toContain("<h1>Your table is ready!</h1>");
-    expect(html).toContain('<p class="ahead">Check in now.</p>');
+    expect(html).toContain('<p class="ahead">See your host.</p>');
     expect(html).toMatch(
       /<div class="place"><div>.*?<\/div><svg aria-hidden="true" focusable="false"/,
     );

@@ -62,9 +62,7 @@ test("lets the next party check in once a service ends, and the first join again
 
   // Seated, Ana has left the queue: Ben is next, but her seat is still taken.
   await otherPage.reload();
-  await expect(
-    otherPage.getByText("You're next. Stay close and keep this page open."),
-  ).toBeVisible();
+  await expect(otherPage.getByText("You're next. Stay close.")).toBeVisible();
   await expect(checkInButton(otherPage)).toBeHidden();
 
   await reloadUntilVisible(

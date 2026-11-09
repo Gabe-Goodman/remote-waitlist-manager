@@ -48,7 +48,7 @@ test("joins the waitlist, lands on the party's page and stays there after a relo
   await expect(page.getByText("Ana, party of 2")).toBeVisible();
   await expect(
     page.getByText(
-      /^(You're next\. Stay close and keep this page open\.|\d+ part(y|ies) ahead of you\.|Check in now\.)$/,
+      /^(You're next\. Stay close\.|\d+ part(y|ies) ahead of you\.|See your host\.)$/,
     ),
   ).toBeVisible();
   // Without JavaScript the Copy button would do nothing, so it stays hidden.
