@@ -179,13 +179,13 @@ export function waitlistHandlers(waitlist: WaitlistService) {
 
   // Any error a route throws (a database outage, a bug) ends here: the
   // details go to the server log, the diner gets a plain page with a Try
-  // again link.
+  // again link back to where they were.
   function showError(error: Error, c: Context) {
     // An HTTPException already carries the right answer (the body limit's
     // 413); only unexpected errors become the 500 page.
     if (error instanceof HTTPException) return error.getResponse();
     console.error(error);
-    return c.html(errorPage(), 500);
+    return c.html(errorPage(retryPath(c)), 500);
   }
 }
 
@@ -193,6 +193,19 @@ export function waitlistHandlers(waitlist: WaitlistService) {
 // mustn't lose. A party that finished or left has none.
 function holdsPlace(state: PartyState): boolean {
   return state.kind !== "done" && state.kind !== "left";
+}
+
+// Where the error page's Try again goes. A page (GET) loads again: it
+// changes nothing, and a friend who opened a party's link gets the party
+// back rather than the join form. An action on a party (check in, leave)
+// goes to that party's page, which shows what really happened, instead of
+// acting again. Anything else, such as a join, goes to /. One leading
+// slash, so the link can never point to another site.
+function retryPath(c: Context): string {
+  const url = new URL(c.req.url);
+  const path = `/${url.pathname.replace(/^\/+/, "")}`;
+  if (c.req.method !== "POST") return path + url.search;
+  return /^(\/party\/[^/]+)\/[^/]+$/.exec(path)?.[1] ?? "/";
 }
 
 // A party's own page.
