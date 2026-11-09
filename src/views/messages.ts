@@ -41,7 +41,7 @@ export const messages = {
   leaveButton: "Yes, leave",
   partyLinkLabel: "Your party's link",
   partyLinkHint:
-    "Share it with the rest of your party, or open it on another device. Anyone with this link can see your place on the waitlist, check in for you, or take your party off it.",
+    "Share it with the rest of your party, or open it on another device. Anyone with this link can see your place on the waitlist, and check in or leave for you.",
   copyLink: "Copy link",
   copiedLink: "Link copied",
   errorTitle: "Something went wrong",

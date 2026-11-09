@@ -474,7 +474,7 @@ describe("the party's link", () => {
       '<label for="party-link">Your party&#x27;s link</label>',
     );
     expect(card).toContain(
-      '<p id="party-link-hint" class="secondary">Share it with the rest of your party, or open it on another device. Anyone with this link can see your place on the waitlist, check in for you, or take your party off it.</p>',
+      '<p id="party-link-hint" class="secondary">Share it with the rest of your party, or open it on another device. Anyone with this link can see your place on the waitlist, and check in or leave for you.</p>',
     );
     expect(card).not.toContain("sms:");
     expect(card).not.toContain("mailto:");
