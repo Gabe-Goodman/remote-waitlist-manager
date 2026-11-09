@@ -450,6 +450,18 @@ describe("the party's link", () => {
     expect(await partyPageHtml(app, bensCookie)).toContain("Ben, party of 2");
   });
 
+  test("opens a party's link that ends in a slash, as a messaging app may add one", async () => {
+    const app = await routes();
+    const anasCookie = partyCookie(await postJoin(app, ana));
+
+    const response = await app.request(`${partyPath(anasCookie)}/`);
+
+    expect(response.status).toBe(301);
+    expect(response.headers.get("Location")).toBe(
+      `http://localhost${partyPath(anasCookie)}`,
+    );
+  });
+
   test("says an unknown link matches no party, and offers this browser's own party instead of showing it", async () => {
     const app = await routes();
     const anasCookie = partyCookie(await postJoin(app, ana));
