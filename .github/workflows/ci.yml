@@ -45,5 +45,5 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npx playwright install --with-deps chromium
-      # Playwright's webServer builds and starts the stack with Compose.
+      # The e2e global setup builds and starts the stack with Compose.
       - run: npm run test:e2e

@@ -145,12 +145,13 @@ npm run test:e2e                    # builds and starts the app in Docker, then 
 - **Integration tests** (`src/services/`, `src/storage/`, `src/routes/`): against a real MongoDB, a fresh collection per test in its own database; route tests go through the app's request handling with a controlled clock. No mocks of the database.
 - **End-to-end** (`e2e/`): diner journeys in a phone-sized browser against the built Docker image, with JavaScript turned off (every screen must work without it), except the Copy button and the live card, which need it.
 
-The e2e tests start their own copy of the app and stop if something already uses port 3000, so stop `npm run dev` or `docker compose` first.
+The e2e tests start their own copy of the app and stop it when they finish, the same way on Linux, macOS and Windows. They refuse to start if something already uses port 3000, so stop `npm run dev` or `docker compose` first.
 
 ## Troubleshooting
 
-- **"Cannot connect to the Docker daemon":** Docker isn't running. Start Docker Desktop (or `colima start`, or `sudo systemctl start docker` on Linux), wait until it's ready, and try again.
-- **Port 27017 already in use** (a local MongoDB): `MONGO_PORT=27018 docker compose up --build`. To run `npm run dev` or `npm test` against it, also set `MONGO_URL=mongodb://127.0.0.1:27018/waitlist` or `MONGO_TEST_URL=mongodb://127.0.0.1:27018/waitlist_test`.
+- **"docker: command not found"** (Windows: "The term 'docker' is not recognized"): Docker isn't installed. Install Docker Desktop, then open a new terminal. On Windows it needs WSL 2: if the installer says "Virtual Machine Platform" isn't enabled, run `wsl --install --no-distribution` in an administrator PowerShell and restart.
+- **"Cannot connect to the Docker daemon"** (Windows: "failed to connect to the docker API at npipe:…"): Docker isn't running. Start Docker Desktop (or `colima start`, or `sudo systemctl start docker` on Linux), wait until it's ready, and try again.
+- **Port 27017 already in use** (a local MongoDB): `MONGO_PORT=27018 docker compose up --build` (PowerShell: `$env:MONGO_PORT=27018; docker compose up --build`). To run `npm run dev` or `npm test` against it, also set `MONGO_URL=mongodb://127.0.0.1:27018/waitlist` or `MONGO_TEST_URL=mongodb://127.0.0.1:27018/waitlist_test` the same way.
 - **Port 3000 already in use:** stop whatever uses it (often `npm run dev` or an earlier `docker compose up`). The e2e tests refuse to start rather than test the wrong app.
 - **`npm install` warns about the Node version:** use Node 22 (`nvm use`). Docker doesn't care which Node you have.
 
