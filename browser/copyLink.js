@@ -1,41 +1,53 @@
-// The Copy button for the party's link. src/views/waitlistPage.tsx inlines
-// this file into the card page's <head>; it isn't served at a URL of its own.
-// It lives on the page rather than in the card, because a card swapped in
-// later never runs a script of its own. The field stays selectable, so the
-// page works without it.
+// <copy-link>: the Copy button for the party's link. An island: it holds the
+// link's field, the button and the status it announces, and finds them inside
+// itself, so it works wherever it's put, including in a card the live update
+// swaps in later, because the browser sets up every <copy-link> as it's added
+// to the page. src/views/islands.tsx inlines this file into the card page's
+// <head>; it isn't served at a URL of its own. Without JavaScript it's a
+// plain wrapper: the field stays selectable, and the stylesheet shows the
+// button only once the element is defined.
 (() => {
-  // Set in the <head>, before the body is drawn: the stylesheet shows the
-  // icon and makes room for it only under this class, so the link the diner
-  // is reading never shifts, and every card swapped in later gets the icon
-  // too. Without JavaScript there is no icon and no empty gap.
-  document.documentElement.classList.add("js");
-  /** @type {ReturnType<typeof setTimeout> | undefined} */
-  let reset;
-  // One listener on the document, not on the button: it keeps working when
-  // the card, button included, is replaced.
-  document.addEventListener("click", async (event) => {
-    const button =
-      event.target instanceof Element && event.target.closest("#copy-link");
-    const field = document.getElementById("party-link");
-    const status = document.getElementById("copy-status");
-    const wrapper = button && button.parentElement;
-    if (!wrapper || !(field instanceof HTMLInputElement) || !status) return;
-    try {
-      await navigator.clipboard.writeText(field.value);
-    } catch {
-      // navigator.clipboard only exists on secure pages, so a phone reaching
-      // the app over plain HTTP on the local network copies the old way.
-      field.select();
-      document.execCommand("copy");
+  class CopyLink extends HTMLElement {
+    /** @type {ReturnType<typeof setTimeout> | undefined} */
+    #reset;
+
+    constructor() {
+      super();
+      // On the element itself, so the listener goes wherever it goes.
+      this.addEventListener("click", (event) => void this.#copy(event));
     }
-    wrapper.dataset.copied = "";
-    // The wording comes from the page (messages.ts), not from this file.
-    status.textContent = status.dataset.copiedText ?? "";
-    clearTimeout(reset);
-    // Long enough to notice at a glance, short enough to copy again.
-    reset = setTimeout(() => {
-      delete wrapper.dataset.copied;
-      status.textContent = "";
-    }, 2000);
-  });
+
+    disconnectedCallback() {
+      clearTimeout(this.#reset);
+    }
+
+    /** @param {MouseEvent} event */
+    async #copy(event) {
+      const button =
+        event.target instanceof Element ? event.target.closest("button") : null;
+      const field = this.querySelector("input");
+      const status = this.querySelector('[role="status"]');
+      if (!button || !field || !(status instanceof HTMLElement)) return;
+      try {
+        await navigator.clipboard.writeText(field.value);
+      } catch {
+        // navigator.clipboard only exists on secure pages, so a phone
+        // reaching the app over plain HTTP on the local network copies the
+        // old way.
+        field.select();
+        document.execCommand("copy");
+      }
+      this.dataset.copied = "";
+      // The wording comes from the page (messages.ts), not from this file.
+      status.textContent = status.dataset.copiedText ?? "";
+      clearTimeout(this.#reset);
+      // Long enough to notice at a glance, short enough to copy again.
+      this.#reset = setTimeout(() => {
+        delete this.dataset.copied;
+        status.textContent = "";
+      }, 2000);
+    }
+  }
+
+  customElements.define("copy-link", CopyLink);
 })();

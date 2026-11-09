@@ -487,27 +487,29 @@ describe("the party's link", () => {
     expect(joinForm).not.toContain("/party/");
   });
 
-  test("shows the Copy button only when the page's script runs, and keeps scripts out of the card", async () => {
+  test("puts the link's field and Copy button in a <copy-link> island, with its script in the page's head", async () => {
     const app = await routes();
     const anasCookie = partyCookie(await postJoin(app, ana));
 
     const page = await partyPageHtml(app, anasCookie);
     const card = await (await getCard(app, anasCookie)).text();
-    const joinForm = await (await app.request("/")).text();
 
     const head = /<head>[\s\S]*<\/head>/.exec(page)?.[0] ?? "";
     const copyLinkJs = readFileSync("browser/copyLink.js", "utf8");
     expect(head.includes(copyLinkJs)).toBe(true);
-    expect(card).toMatch(
-      /<button type="button" id="copy-link" class="custom" aria-label="Copy link"><svg aria-hidden="true"/,
+    // Everything the island uses is inside it: the field, the button and
+    // the status it announces, found without ids.
+    const island = /<copy-link>[\s\S]*?<\/copy-link>/.exec(card)?.[0] ?? "";
+    expect(island).toMatch(/^<copy-link><input id="party-link"/);
+    expect(island).toMatch(
+      /<button type="button" class="custom" aria-label="Copy link"><svg aria-hidden="true"/,
     );
     // The wording lives in messages.ts and reaches the script through the
-    // page, so the script itself holds no text a diner reads.
-    expect(card).toContain(
-      '<span role="status" id="copy-status" class="visually-hidden" data-copied-text="Link copied"></span>',
+    // island, so the script itself holds no text a diner reads.
+    expect(island).toContain(
+      '<span role="status" class="visually-hidden" data-copied-text="Link copied"></span>',
     );
     expect(card).not.toContain("<script");
-    expect(joinForm).not.toContain("<script");
   });
 });
 
@@ -935,18 +937,48 @@ describe("the card on its own", () => {
     );
   });
 
-  test("keeps the card up to date only on the card page", async () => {
+  test("wraps the card in a <live-card> island that fetches the party's own card", async () => {
     const app = await routes();
     const anasCookie = partyCookie(await postJoin(app, ana));
+    const anasToken = anasCookie.replace("partyToken=", "");
 
     const page = await partyPageHtml(app, anasCookie);
     const card = await (await getCard(app, anasCookie)).text();
-    const joinForm = await (await app.request("/")).text();
 
     const head = /<head>[\s\S]*<\/head>/.exec(page)?.[0] ?? "";
     const liveCardJs = readFileSync("browser/liveCard.js", "utf8");
     expect(head.includes(liveCardJs)).toBe(true);
+    // The island is told where its card comes from, rather than working it
+    // out from the page's address.
+    expect(page).toContain(
+      `<live-card src="/party/${anasToken}/card"><section class="card"`,
+    );
+    // The card it fetches is the card alone, swapped in inside the island.
+    expect(card).not.toContain("live-card");
     expect(card).not.toContain("<script");
+  });
+
+  test("brings each island's script to exactly the pages that show the island", async () => {
+    const clock = movableClock();
+    const app = waitlistRoutes(waitlistService(await emptyStore(), clock.env));
+    const anasCookie = partyCookie(await postJoin(app, ana));
+    await postCheckIn(app, anasCookie);
+    // A party of 2 is served for 2 × 3 seconds.
+    clock.advance(6000);
+
+    const finished = await partyPageHtml(app, anasCookie);
+    const joinForm = await (await app.request("/")).text();
+    const liveCardJs = readFileSync("browser/liveCard.js", "utf8");
+    const copyLinkJs = readFileSync("browser/copyLink.js", "utf8");
+
+    // A finished party's page shows the live card but has no link to copy,
+    // so it gets the live card's script and not the Copy button's.
+    const body = /<body>[\s\S]*<\/body>/.exec(finished)?.[0] ?? "";
+    expect(body).toContain("<live-card");
+    expect(body).not.toContain("<copy-link");
+    expect(finished.includes(liveCardJs)).toBe(true);
+    expect(finished.includes(copyLinkJs)).toBe(false);
+    // The join form shows no islands, so it gets no script.
     expect(joinForm).not.toContain("<script");
   });
 

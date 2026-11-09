@@ -144,14 +144,17 @@ select {
   font: var(--body-2);
   padding-inline: var(--spacing-l3);
 }
-/* The Copy icon sits inside the link's field at its right edge. Only under
-   the class the page's script sets is it shown and does the field make
-   room, so without JavaScript there is no icon and no empty gap. */
-.copy-field {
+/* The Copy icon sits inside the link's field at its right edge. Only once
+   the island's script has defined <copy-link> is it shown and does the
+   field make room, so without JavaScript there is no icon and no empty gap.
+   The script runs in the <head>, so the element is defined before it's
+   drawn and nothing shifts. */
+copy-link {
+  display: block;
   position: relative;
 }
 /* By id: TableKit's padding rule on inputs is more specific than a class. */
-.js .copy-field #party-link {
+copy-link:defined #party-link {
   padding-right: 2.5rem;
 }
 /* A long link ends in "…" rather than a character cut in half. */
@@ -159,7 +162,7 @@ select {
   text-overflow: ellipsis;
 }
 /* A 40px tap target, more specific than the page-wide button rule. */
-.copy-field button {
+copy-link button {
   position: absolute;
   right: 0.125rem;
   top: 50%;
@@ -175,14 +178,14 @@ select {
   cursor: pointer;
   border-radius: var(--border-radius-small);
 }
-.js .copy-field button {
+copy-link:defined button {
   display: flex;
 }
-.copy-field .icon-check,
-.copy-field[data-copied] .icon-copy {
+copy-link .icon-check,
+copy-link[data-copied] .icon-copy {
   display: none;
 }
-.copy-field[data-copied] .icon-check {
+copy-link[data-copied] .icon-check {
   display: block;
 }
 /* TableKit leaves <summary> unstyled; here it reads as a quiet link, like

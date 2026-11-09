@@ -26,7 +26,7 @@ export default tseslint.config(
       globals: {
         document: "readonly",
         navigator: "readonly",
-        location: "readonly",
+        customElements: "readonly",
         window: "readonly",
         fetch: "readonly",
         setTimeout: "readonly",

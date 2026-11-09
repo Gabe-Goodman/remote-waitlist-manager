@@ -6,6 +6,7 @@
 import type { Party, PartyState } from "../domain/waitlist.js";
 import { toFragment } from "./html.js";
 import { Icon, type IconName } from "./icons.js";
+import { CopyLink } from "./islands.js";
 import { cardTitles, messages } from "./messages.js";
 
 type PartyCardProps = {
@@ -127,10 +128,10 @@ function ShareLink({ link }: { link: string }) {
     <div className="share">
       <label htmlFor="party-link">{messages.partyLinkLabel}</label>
       {/* The Copy button sits inside the field, so showing it moves
-          nothing. The stylesheet shows it only when the page's script runs:
-          without JavaScript it would do nothing. "custom" opts it out of
-          TableKit's filled button: it's an icon. */}
-      <div className="copy-field">
+          nothing. The stylesheet shows it only once the island's script has
+          defined <copy-link>: without JavaScript it would do nothing.
+          "custom" opts it out of TableKit's filled button: it's an icon. */}
+      <CopyLink>
         <input
           id="party-link"
           readOnly
@@ -138,22 +139,16 @@ function ShareLink({ link }: { link: string }) {
           aria-describedby="party-link-hint"
           data-stretch
         />
-        <button
-          type="button"
-          id="copy-link"
-          className="custom"
-          aria-label={messages.copyLink}
-        >
+        <button type="button" className="custom" aria-label={messages.copyLink}>
           <Icon name="copy" size={18} className="icon-copy" />
           <Icon name="checkmark" size={18} className="icon-check" />
         </button>
         <span
           role="status"
-          id="copy-status"
           className="visually-hidden"
           data-copied-text={messages.copiedLink}
         />
-      </div>
+      </CopyLink>
       <p id="party-link-hint" className="secondary">
         {messages.partyLinkHint}
       </p>
