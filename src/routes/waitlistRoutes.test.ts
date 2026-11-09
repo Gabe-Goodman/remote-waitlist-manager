@@ -450,6 +450,66 @@ describe("the party's link", () => {
     expect(await partyPageHtml(app, bensCookie)).toContain("Ben, party of 2");
   });
 
+  test("offers a browser without a party the join form from a friend's party, for a different party", async () => {
+    const app = await routes();
+    const anasCookie = partyCookie(await postJoin(app, ana));
+
+    const page = await (await app.request(partyPath(anasCookie))).text();
+
+    // Outside the live card, so a swapped-in card can't take it away.
+    expect(page).toContain(
+      '</live-card><p class="other-group secondary">Dining with a different party? <a href="/">Join the waitlist</a></p>',
+    );
+  });
+
+  test("offers a browser with a party of its own the way back to it from a friend's party", async () => {
+    const app = await routes();
+    const anasCookie = partyCookie(await postJoin(app, ana));
+    const bensCookie = partyCookie(
+      await postJoin(app, { name: "Ben", email: "ben@example.com", size: "2" }),
+    );
+
+    const page = await (
+      await app.request(partyPath(anasCookie), {
+        headers: { Cookie: bensCookie },
+      })
+    ).text();
+
+    expect(page).toContain(
+      '</live-card><p class="other-group secondary">Looking for your own party? <a href="/">Go to your party</a></p>',
+    );
+    expect(page).not.toContain("Dining with a different party?");
+  });
+
+  test("decides from the cookie alone, without a second lookup, so a cookie for a forgotten party still says Go to your party", async () => {
+    // The cookie lasts 6 hours and a party is forgotten at least a day after
+    // its visit, so this only happens after a database reset; / then clears
+    // the cookie and shows the join form.
+    const app = await routes();
+    const anasCookie = partyCookie(await postJoin(app, ana));
+
+    const page = await (
+      await app.request(partyPath(anasCookie), {
+        headers: { Cookie: "partyToken=forgotten" },
+      })
+    ).text();
+
+    expect(page).toContain('<a href="/">Go to your party</a>');
+  });
+
+  test("shows the party's own browser nothing below its card", async () => {
+    const app = await routes();
+    const anasCookie = partyCookie(await postJoin(app, ana));
+
+    const page = await (
+      await app.request(partyPath(anasCookie), {
+        headers: { Cookie: anasCookie },
+      })
+    ).text();
+
+    expect(page).not.toContain('class="other-group');
+  });
+
   test("opens a party's link that ends in a slash, as a messaging app may add one", async () => {
     const app = await routes();
     const anasCookie = partyCookie(await postJoin(app, ana));
@@ -505,7 +565,7 @@ describe("the party's link", () => {
     expect(field).toContain(`value="http://localhost/party/${anasToken}"`);
     expect(field).toContain('aria-describedby="party-link-hint"');
     expect(card).toContain(
-      '<label for="party-link">Your party&#x27;s link</label>',
+      '<label for="party-link">This party&#x27;s link</label>',
     );
     expect(card).toContain(
       '<p id="party-link-hint" class="secondary">Share it with the rest of your party, or open it on another device. Anyone with this link can see your place on the waitlist, and check in or leave for you.</p>',

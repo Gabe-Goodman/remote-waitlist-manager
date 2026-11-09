@@ -88,7 +88,7 @@ test("shows the Check-in button the moment the table is ready, without a reload"
   // <copy-link> island sets itself up when it's added to the page.
   await otherPage.getByRole("button", { name: "Copy link" }).click();
   await expect(otherPage.getByRole("status")).toHaveText("Link copied");
-  const link = await otherPage.getByLabel("Your party's link").inputValue();
+  const link = await otherPage.getByLabel("This party's link").inputValue();
   expect(await otherPage.evaluate(() => navigator.clipboard.readText())).toBe(
     link,
   );

@@ -71,7 +71,7 @@ test("views the party from another browser session", async ({
     email: uniqueEmail("bea"),
     size: "3",
   });
-  const link = await page.getByLabel("Your party's link").inputValue();
+  const link = await page.getByLabel("This party's link").inputValue();
 
   // A second browser shares no cookies with the first, like another phone.
   // It takes the project's settings, so it's the same phone, JavaScript off.

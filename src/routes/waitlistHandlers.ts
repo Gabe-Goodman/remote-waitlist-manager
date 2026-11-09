@@ -97,7 +97,19 @@ export function waitlistHandlers(waitlist: WaitlistService) {
       return c.html(unknownPartyPage(Boolean(ownParty)));
     }
     const { party, state } = found;
-    return c.html(partyPage({ party, state, origin: siteOrigin(c) }));
+    // Whose browser this is decides the way out offered below the card:
+    // the join form for a browser with no party, the way back to its own
+    // party for a browser with another. From the cookie alone, with no
+    // second lookup: the cookie lasts 6 hours and a party is forgotten at
+    // least a day after its visit, so a cookie whose party is gone only
+    // follows a database reset, and / then clears it and shows the form.
+    const ownPartyToken = getCookie(c, partyTokenCookie);
+    const viewer = !ownPartyToken
+      ? "no-party"
+      : ownPartyToken === party.token
+        ? "this-party"
+        : "other-party";
+    return c.html(partyPage({ party, state, origin: siteOrigin(c), viewer }));
   }
 
   // The party's card on its own, which the card's live updates fetch. The
