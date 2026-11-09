@@ -1218,7 +1218,7 @@ describe("the back button", () => {
 });
 
 describe("styling", () => {
-  test("carries TableKit's stylesheet and the page's own in every page", async () => {
+  test("carries TableKit's stylesheet, the page's own and the tab's icon in every page", async () => {
     vi.spyOn(console, "error").mockImplementation(() => {});
     const tablekitCss = readFileSync(
       createRequire(import.meta.url).resolve(
@@ -1238,6 +1238,7 @@ describe("styling", () => {
       "refused join": await postJoin(app, { ...ana, email: "nope" }),
       "party card": await app.request(partyPath(partyCookie(joined))),
       "error page": await failing.request("/"),
+      "unknown link": await app.request("/party/nope"),
     };
 
     for (const [page, response] of Object.entries(pages)) {
@@ -1245,7 +1246,25 @@ describe("styling", () => {
       const html = await response.text();
       expect(html.includes(`<style>${tablekitCss}</style>`), page).toBe(true);
       expect(html.includes(`<style>${pageCss}</style>`), page).toBe(true);
+      // One PNG for the tab (Safari shows no SVG icon there) and for Apple's
+      // link previews and home screen.
+      expect(html, page).toContain(
+        '<link rel="icon" type="image/png" href="/apple-touch-icon.png"/>',
+      );
+      expect(html, page).toContain(
+        '<link rel="apple-touch-icon" href="/apple-touch-icon.png"/>',
+      );
     }
+  });
+
+  test("serves the icon Apple's devices use for link previews and the home screen", async () => {
+    const response = await (await routes()).request("/apple-touch-icon.png");
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get("Content-Type")).toBe("image/png");
+    const png = new Uint8Array(await response.arrayBuffer());
+    // Every PNG file starts with these 8 bytes.
+    expect([...png.slice(0, 8)]).toEqual([137, 80, 78, 71, 13, 10, 26, 10]);
   });
 
   test("marks each invalid field for screen readers and for TableKit", async () => {

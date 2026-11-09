@@ -39,6 +39,7 @@ export function waitlistRoutes(waitlist: WaitlistService): Hono {
   routes.post("/parties", handle.joinFromForm);
   routes.post("/party/:partyToken/check-in", handle.checkInFromCard);
   routes.post("/party/:partyToken/leave", handle.leaveFromCard);
+  routes.get("/apple-touch-icon.png", handle.showAppIcon);
   routes.get("/health", handle.showHealth);
   routes.onError(handle.showError);
 
