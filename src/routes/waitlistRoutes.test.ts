@@ -565,7 +565,7 @@ describe("the party's link", () => {
     expect(field).toContain(`value="http://localhost/party/${anasToken}"`);
     expect(field).toContain('aria-describedby="party-link-hint"');
     expect(card).toContain(
-      '<label for="party-link">Your party&#x27;s link</label>',
+      '<label for="party-link">This party&#x27;s link</label>',
     );
     expect(card).toContain(
       '<p id="party-link-hint" class="secondary">Share it with the rest of your party, or open it on another device. Anyone with this link can see your place on the waitlist, and check in or leave for you.</p>',

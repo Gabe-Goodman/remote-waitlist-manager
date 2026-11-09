@@ -20,7 +20,7 @@ test("copies the party's link with one tap", async ({ page }) => {
   await page.getByRole("button", { name: "Copy link" }).click();
 
   await expect(page.getByRole("status")).toHaveText("Link copied");
-  const link = await page.getByLabel("Your party's link").inputValue();
+  const link = await page.getByLabel("This party's link").inputValue();
   expect(link).toMatch(/\/party\/[\w-]+$/);
   expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(link);
 });

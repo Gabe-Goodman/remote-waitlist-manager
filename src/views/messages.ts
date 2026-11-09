@@ -39,7 +39,7 @@ export const messages = {
   leaveWarning:
     "Your place can't be restored. If you join again, you'll go to the back of the waitlist.",
   leaveButton: "Yes, leave",
-  partyLinkLabel: "Your party's link",
+  partyLinkLabel: "This party's link",
   partyLinkHint:
     "Share it with the rest of your party, or open it on another device. Anyone with this link can see your place on the waitlist, and check in or leave for you.",
   copyLink: "Copy link",

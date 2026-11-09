@@ -26,7 +26,7 @@ The restaurant has 10 seats, and a party is served for 3 seconds per person. Use
 2. **Browser B:** join as a party of **9**. A holds 2 seats and 2 + 9 > 10, so B waits: "1 party ahead of you."
 3. **A:** tap **Check in**. A is seated for 6 seconds ("Enjoy your meal."), then the card turns to "Thanks for dining" on its own. Meanwhile B, without reloading, shows "You're next. Stay close."
 4. **B**, still without reloading: the moment A's meal ends, B's card turns to "Your table is ready!" with the Check-in button, and the tab title changes.
-5. Copy **B's link** (the address bar, or "Your party's link") into browser A: A now shows B's card, and tapping Check in there checks in B. Anyone with the link can act for the party. Opening a link only shows a party: only joining makes it the browser's own, the one `/` leads to.
+5. Copy **B's link** (the address bar, or "This party's link") into browser A: A now shows B's card, and tapping Check in there checks in B. Anyone with the link can act for the party. Opening a link only shows a party: only joining makes it the browser's own, the one `/` leads to.
 6. On a finished or left card, "Join the waitlist again" opens the form with the name and email filled in; the party goes to the back of the line. Only the browser that joined as the party gets it filled in; any other, like A on B's card, gets it empty.
 
 Try the edges too: join twice with the same email, double-tap Join, leave the waitlist, or turn JavaScript off (every screen still works; the card updates on reload instead).
