@@ -8,6 +8,7 @@ import { HTTPException } from "hono/http-exception";
 import type { BlankEnv } from "hono/types";
 import type { JoinForm, PartyState } from "../domain/waitlist.js";
 import type { WaitlistService } from "../services/waitlistService.js";
+import { appIconPng } from "../views/browserFiles.js";
 import { errorPage, unknownPartyPage } from "../views/errorPage.js";
 import { cardFragment } from "../views/partyCard.js";
 import { joinPage, partyPage } from "../views/waitlistPage.js";
@@ -23,6 +24,7 @@ export function waitlistHandlers(waitlist: WaitlistService) {
     joinFromForm,
     checkInFromCard,
     leaveFromCard,
+    showAppIcon,
     showHealth,
     showError,
   };
@@ -177,6 +179,11 @@ export function waitlistHandlers(waitlist: WaitlistService) {
     const partyToken = c.req.param("partyToken");
     await waitlist.leave(partyToken);
     return c.redirect(partyPath(partyToken), 303);
+  }
+
+  // The restaurant's icon (see browserFiles.ts).
+  function showAppIcon(c: Context) {
+    return c.body(appIconPng, 200, { "Content-Type": "image/png" });
   }
 
   async function showHealth(c: Context) {

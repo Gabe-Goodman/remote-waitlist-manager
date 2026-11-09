@@ -30,6 +30,10 @@ export function Layout({
         <meta charSet="utf-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
         <title>{title}</title>
+        {/* The restaurant's icon, for the browser tab and for Apple's link
+            previews and home screen: one PNG, which every browser shows. */}
+        <link rel="icon" type="image/png" href="/apple-touch-icon.png" />
+        <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
         {/* TableKit first: the page's own rules below win where their
             selectors are as specific as TableKit's. */}
         <style>{tablekitCss}</style>
