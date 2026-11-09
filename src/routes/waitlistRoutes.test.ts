@@ -481,6 +481,22 @@ describe("the party's link", () => {
     expect(page).not.toContain("Joining with a different group?");
   });
 
+  test("decides from the cookie alone, without a second lookup, so a cookie for a forgotten party still says Go to your party", async () => {
+    // The cookie lasts 6 hours and a party is forgotten at least a day after
+    // its visit, so this only happens after a database reset; / then clears
+    // the cookie and shows the join form.
+    const app = await routes();
+    const anasCookie = partyCookie(await postJoin(app, ana));
+
+    const page = await (
+      await app.request(partyPath(anasCookie), {
+        headers: { Cookie: "partyToken=forgotten" },
+      })
+    ).text();
+
+    expect(page).toContain('<a href="/">Go to your party</a>');
+  });
+
   test("shows the party's own browser nothing below its card", async () => {
     const app = await routes();
     const anasCookie = partyCookie(await postJoin(app, ana));

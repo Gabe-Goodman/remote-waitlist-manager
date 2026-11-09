@@ -96,13 +96,15 @@ export function waitlistHandlers(waitlist: WaitlistService) {
     }
     const { party, state } = found;
     // Whose browser this is decides the way out offered below the card:
-    // the join form only where / would show it, the way back to its own
-    // party where / leads there.
+    // the join form for a browser with no party, the way back to its own
+    // party for a browser with another. From the cookie alone, with no
+    // second lookup: the cookie lasts 6 hours and a party is forgotten at
+    // least a day after its visit, so a cookie whose party is gone only
+    // follows a database reset, and / then clears it and shows the form.
     const ownPartyToken = getCookie(c, partyTokenCookie);
-    const ownParty = ownPartyToken && (await waitlist.find(ownPartyToken));
-    const viewer = !ownParty
+    const viewer = !ownPartyToken
       ? "no-party"
-      : ownParty.party.token === party.token
+      : ownPartyToken === party.token
         ? "this-party"
         : "other-party";
     return c.html(partyPage({ party, state, origin: siteOrigin(c), viewer }));

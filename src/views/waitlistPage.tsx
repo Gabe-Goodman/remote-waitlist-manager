@@ -39,9 +39,9 @@ type PartyPageProps = {
   party: Party;
   state: PartyState;
   origin: string;
-  // Whose browser is looking: this party's own, one with a party of its
-  // own elsewhere (where / leads to that party), or one with none (where /
-  // shows the join form).
+  // Whose browser is looking, from its cookie: this party's own, one with a
+  // party of its own elsewhere (where / leads to that party), or one with
+  // none (where / shows the join form).
   viewer: "this-party" | "other-party" | "no-party";
 };
 type JoinPageProps = {
