@@ -84,12 +84,16 @@ function StateLine({ state }: { state: PartyState }) {
     case "waiting":
       return <p className="ahead">{messages.ahead(state.ahead)}</p>;
     case "ready":
-      // No time limit: the table is held until the party checks in or
+      // Checking in starts the table's clock (its seats are freed when the
+      // service time runs out), so it should happen at the host stand: the
+      // card sends the diner there first. The party's name and size under
+      // this line are what the host confirms, and the Check-in button comes
+      // next. No time limit: the table is held until the party checks in or
       // leaves.
-      return <p className="ahead">{messages.checkInNow}</p>;
+      return <p className="ahead">{messages.seeHost}</p>;
     case "in-service":
-      // The service is timed on the server, and the card turns to "Thanks"
-      // on its own when it ends.
+      // With the host and being seated. The service is timed on the server,
+      // and the card turns to "Thanks" on its own when it ends.
       return <p className="ahead">{messages.enjoyMeal}</p>;
     case "done":
     case "left":

@@ -90,7 +90,13 @@ The next step for read cost, before either of these: cache the waitlist in memor
 
 ## The card's heading
 - In TableKit's h2 size (24px) with the h1's weight, not the page title's 36px. At 36px some states' headings wrapped onto two lines and others didn't, depending on the phone, so when the live update swapped a waiting card for a ready one the panel jumped 48px on most phones and not at all on others. At 24px the headings the live update swaps in place (waiting, ready, checked in, meal over) fit one line on a 360px phone, and the panel stays put; an e2e test checks each one. "You've left the waitlist" isn't checked: the diner reaches it by tapping Leave, on a new page, so a wrap moves nothing (only a friend leaving from another phone swaps it in live, once the visit is over). TableKit loads no font file, so each device uses the first of its fonts it has and a heading's width varies by machine: "Thanks for dining with us" was shortened to "Thanks for dining" after it wrapped in CI's Linux font. It also matches the intent that where you stand comes first: at 36px the heading outshouted the panel. Still an `<h1>` for screen readers and the page outline; "Join the waitlist", a page title, keeps the h1 size.
-- No full stops in headings, which are also the tab titles: "You're checked in", not "You're checked in.". The one exclamation mark, "Your table is ready!", is the news. Sentences in the panel ("Check in now.") keep theirs.
+- No full stops in headings, which are also the tab titles: "You're checked in", not "You're checked in.". The one exclamation mark, "Your table is ready!", is the news. Sentences in the panel ("See your host.") keep theirs.
+
+## The card's words
+- The panel line under the heading says what to do or expect next, and it's read at a glance, so it's short: one line on most phones.
+- A ready party is told "See your host.", with the Check-in button right below. Checking in starts the table's clock (the party's seats are counted from the tap and freed when the service time runs out), so a diner who tapped from the car park would free the table while still walking in. Sending them to the host stand first also puts the party's name and size, under the line, in front of the host who confirms them.
+- Checked in: "Enjoy your meal." By then they're with the host and being seated.
+- At the front of the line: "You're next. Stay close." The join page already says to keep the page open, and the card refreshes as soon as the phone is unlocked.
 
 ## Icons
 - Carbon (IBM, Apache-2.0), the set TableKit's React components use, so the icons match the stylesheet. TableCheck's own `tablecheck-icons` was last released in 2021 and is a Font Awesome 5-style icon font, so it wasn't considered.

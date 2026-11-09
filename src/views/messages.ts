@@ -23,13 +23,15 @@ export const messages = {
         ? "1 party is waiting."
         : `${count} parties are waiting.`,
   partyLine: (name: string, size: number) => `${name}, party of ${size}`,
+  // The card's panel lines are read at a glance, so each is short: the join
+  // page already says to keep the page open.
   ahead: (count: number) =>
     count === 0
-      ? "You're next. Stay close and keep this page open."
+      ? "You're next. Stay close."
       : count === 1
         ? "1 party ahead of you."
         : `${count} parties ahead of you.`,
-  checkInNow: "Check in now.",
+  seeHost: "See your host.",
   checkInButton: "Check in",
   enjoyMeal: "Enjoy your meal.",
   joinAgain: "Join the waitlist again",

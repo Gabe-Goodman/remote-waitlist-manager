@@ -46,9 +46,9 @@ test("shows the Check-in button the moment the table is ready, without a reload"
   // From here on Max's page is never reloaded: every change comes from the
   // card updating itself. Lia's service lasts 3 seconds.
   await checkInButton(page).click();
-  await expect(
-    otherPage.getByText("You're next. Stay close and keep this page open."),
-  ).toBeVisible({ timeout: 10_000 });
+  await expect(otherPage.getByText("You're next. Stay close.")).toBeVisible({
+    timeout: 10_000,
+  });
   await expect(heading(otherPage, "Your table is ready!")).toBeVisible({
     timeout: 10_000,
   });
