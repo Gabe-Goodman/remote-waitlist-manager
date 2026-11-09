@@ -76,6 +76,7 @@ The next step for read cost, before either of these: cache the waitlist in memor
 
 ## When something goes wrong
 - Any error a route throws ends on one friendly page ("Something went wrong", "Try again"); the details go to the server log, never to the diner.
+- "Try again" goes back to where the diner was. A page loads again, so a friend who opened a party's link gets the party back instead of the join form. Check in or Leave goes to that party's page, which shows whether it went through, rather than acting twice. A failed join goes to the empty form: keeping what was typed would mean a special case for a rare outage, and "busy", the failure seen under load, already keeps it.
 - An HTTP error that already carries the right answer (the 10 KB body limit's 413) passes through unchanged.
 - Every POST is limited to 10 KB. The largest valid join form is about 700 bytes.
 - "Busy" (the retries ran out) keeps what the diner typed and asks them to tap Join again.

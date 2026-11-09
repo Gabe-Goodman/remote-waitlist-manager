@@ -1079,6 +1079,25 @@ describe("when something goes wrong", () => {
     );
   });
 
+  test("tries again where the diner was: the same page, or the party an action was for", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    const app = waitlistRoutes(
+      waitlistService(withLoadFailing(await emptyStore()), env),
+    );
+    const tryAgain = async (path: string, method = "GET") =>
+      /<a href="([^"]*)">Try again<\/a>/.exec(
+        await (await app.request(path, { method })).text(),
+      )?.[1];
+
+    // A page loads again; a friend's link brings the party back.
+    expect(await tryAgain("/party/abc")).toBe("/party/abc");
+    expect(await tryAgain("/?rejoin=abc")).toBe("/?rejoin=abc");
+    // An action isn't repeated: the party's page shows what happened.
+    expect(await tryAgain("/party/abc/check-in", "POST")).toBe("/party/abc");
+    expect(await tryAgain("/party/abc/leave", "POST")).toBe("/party/abc");
+    expect(await tryAgain("/parties", "POST")).toBe("/");
+  });
+
   test("shows the friendly page when the routes are mounted in another app", async () => {
     vi.spyOn(console, "error").mockImplementation(() => {});
     const app = new Hono().route(
