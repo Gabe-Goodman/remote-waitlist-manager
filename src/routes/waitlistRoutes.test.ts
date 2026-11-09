@@ -450,12 +450,34 @@ describe("the party's link", () => {
     expect(await partyPageHtml(app, bensCookie)).toContain("Ben, party of 2");
   });
 
-  test("sends an unknown link to the join form", async () => {
-    const response = await (await routes()).request("/party/nope");
+  test("says an unknown link matches no party, and offers this browser's own party instead of showing it", async () => {
+    const app = await routes();
+    const anasCookie = partyCookie(await postJoin(app, ana));
 
-    expect(response.status).toBe(303);
-    expect(response.headers.get("Location")).toBe("/");
+    const response = await app.request("/party/nope", {
+      headers: { Cookie: anasCookie },
+    });
+    const page = await response.text();
+
+    // 200, not 404: messaging apps show a link's title only for a page
+    // that loaded, so the sender sees this one is broken before sending it.
+    expect(response.status).toBe(200);
     expect(response.headers.get("Set-Cookie")).toBeNull();
+    expect(page).toContain("<h1>We couldn&#x27;t find this party</h1>");
+    expect(page).toContain(
+      "The visit may be over, or the link may be incomplete. If someone sent it to you, ask them to send it again.",
+    );
+    expect(page).toContain('<a href="/">Go to your party</a>');
+    expect(page).not.toContain("Ana");
+  });
+
+  test("offers the join form after an unknown link to a browser without a party", async () => {
+    const response = await (await routes()).request("/party/nope");
+    const page = await response.text();
+
+    expect(response.status).toBe(200);
+    expect(page).toContain("<h1>We couldn&#x27;t find this party</h1>");
+    expect(page).toContain('<a href="/">Join the waitlist</a>');
   });
 
   test("shows the party's full link on its card, ready to copy, with who can use it", async () => {
@@ -603,14 +625,17 @@ describe("checking in", () => {
     );
   });
 
-  test("sends a check-in for a party that isn't on the waitlist to the join form", async () => {
+  test("sends a check-in for a party that isn't on the waitlist to its page, which says so", async () => {
     const store = await emptyStore();
     const app = waitlistRoutes(waitlistService(store, env));
 
     const response = await postCheckIn(app, "partyToken=gone");
 
     expect(response.status).toBe(303);
-    expect(response.headers.get("Location")).toBe("/");
+    expect(response.headers.get("Location")).toBe("/party/gone");
+    expect(await (await app.request("/party/gone")).text()).toContain(
+      "<h1>We couldn&#x27;t find this party</h1>",
+    );
     expect((await store.load()).waitlist.parties).toEqual([]);
   });
 
@@ -833,7 +858,7 @@ describe("leaving", () => {
     );
   });
 
-  test("sends a refused leave back to the party's page, or to / for an unknown party", async () => {
+  test("sends a refused leave back to the party's page, even for an unknown party", async () => {
     const app = await routes();
     const anasCookie = partyCookie(await postJoin(app, ana));
     await postCheckIn(app, anasCookie);
@@ -841,7 +866,10 @@ describe("leaving", () => {
     const noParty = await postLeave(app, "partyToken=gone");
     const checkedIn = await postLeave(app, anasCookie);
 
-    expect(noParty.headers.get("Location")).toBe("/");
+    expect(noParty.headers.get("Location")).toBe("/party/gone");
+    expect(await (await app.request("/party/gone")).text()).toContain(
+      "<h1>We couldn&#x27;t find this party</h1>",
+    );
     expect(checkedIn.headers.get("Location")).toBe(partyPath(anasCookie));
     for (const response of [noParty, checkedIn]) {
       expect(response.status).toBe(303);
