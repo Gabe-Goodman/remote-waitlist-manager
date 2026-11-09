@@ -51,7 +51,8 @@ export const messages = {
     "The visit may be over, or the link may be incomplete. If someone sent it to you, ask them to send it again.",
   goToYourParty: "Go to your party",
   joinTheWaitlist: "Join the waitlist",
-  joiningWithDifferentGroup: "Joining with a different group?",
+  diningWithDifferentParty: "Dining with a different party?",
+  lookingForYourOwnParty: "Looking for your own party?",
 } as const;
 
 /**

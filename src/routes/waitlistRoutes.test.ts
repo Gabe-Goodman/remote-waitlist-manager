@@ -450,7 +450,7 @@ describe("the party's link", () => {
     expect(await partyPageHtml(app, bensCookie)).toContain("Ben, party of 2");
   });
 
-  test("offers a browser without a party the join form from a friend's party, for a different group", async () => {
+  test("offers a browser without a party the join form from a friend's party, for a different party", async () => {
     const app = await routes();
     const anasCookie = partyCookie(await postJoin(app, ana));
 
@@ -458,7 +458,7 @@ describe("the party's link", () => {
 
     // Outside the live card, so a swapped-in card can't take it away.
     expect(page).toContain(
-      '</live-card><p class="other-group secondary">Joining with a different group? <a href="/">Join the waitlist</a></p>',
+      '</live-card><p class="other-group secondary">Dining with a different party? <a href="/">Join the waitlist</a></p>',
     );
   });
 
@@ -476,9 +476,9 @@ describe("the party's link", () => {
     ).text();
 
     expect(page).toContain(
-      '</live-card><p class="other-group secondary"><a href="/">Go to your party</a></p>',
+      '</live-card><p class="other-group secondary">Looking for your own party? <a href="/">Go to your party</a></p>',
     );
-    expect(page).not.toContain("Joining with a different group?");
+    expect(page).not.toContain("Dining with a different party?");
   });
 
   test("decides from the cookie alone, without a second lookup, so a cookie for a forgotten party still says Go to your party", async () => {

@@ -84,12 +84,13 @@ function WaitlistPage(props: WaitlistPageProps) {
             swapped-in card keeps it. */}
         {props.viewer === "no-party" && (
           <p className="other-group secondary">
-            {`${messages.joiningWithDifferentGroup} `}
+            {`${messages.diningWithDifferentParty} `}
             <a href="/">{messages.joinTheWaitlist}</a>
           </p>
         )}
         {props.viewer === "other-party" && (
           <p className="other-group secondary">
+            {`${messages.lookingForYourOwnParty} `}
             <a href="/">{messages.goToYourParty}</a>
           </p>
         )}
