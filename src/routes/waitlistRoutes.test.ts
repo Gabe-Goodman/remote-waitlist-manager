@@ -575,8 +575,8 @@ describe("checking in", () => {
     expect(response.status).toBe(303);
     expect(response.headers.get("Location")).toBe(partyPath(anasCookie));
     const html = await partyPageHtml(app, anasCookie);
-    expect(html).toContain("<title>You&#x27;re checked in.</title>");
-    expect(html).toContain("<h1>You&#x27;re checked in.</h1>");
+    expect(html).toContain("<title>You&#x27;re checked in</title>");
+    expect(html).toContain("<h1>You&#x27;re checked in</h1>");
     // No clock on the meal: nobody likes being timed at dinner.
     expect(html).toContain('<p class="ahead">Enjoy your meal.</p>');
     expect(html).toContain("Ana, party of 2");
@@ -595,7 +595,7 @@ describe("checking in", () => {
       expect(response.headers.get("Location")).toBe(partyPath(anasCookie));
     }
     expect(await partyPageHtml(app, anasCookie)).toContain(
-      "<h1>You&#x27;re checked in.</h1>",
+      "<h1>You&#x27;re checked in</h1>",
     );
   });
 
@@ -621,7 +621,7 @@ describe("checking in", () => {
     await postCheckIn(app, anasCookie, bensCookie);
 
     expect(await partyPageHtml(app, anasCookie)).toContain(
-      "<h1>You&#x27;re checked in.</h1>",
+      "<h1>You&#x27;re checked in</h1>",
     );
     expect(await partyPageHtml(app, bensCookie)).toContain(
       "<h1>Your table is ready!</h1>",
@@ -638,8 +638,8 @@ describe("checking in", () => {
     clock.advance(6000);
     const html = await partyPageHtml(app, anasCookie);
 
-    expect(html).toContain("<title>Thanks for dining with us.</title>");
-    expect(html).toContain("<h1>Thanks for dining with us.</h1>");
+    expect(html).toContain("<title>Thanks for dining with us</title>");
+    expect(html).toContain("<h1>Thanks for dining with us</h1>");
     expect(html).toContain("Ana, party of 2");
     expect(html).not.toContain('id="party-link"');
   });
@@ -721,7 +721,7 @@ describe("joining again", () => {
     expect(html).toMatch(/<option value="" disabled="" selected="">/);
     expect(response.headers.get("Set-Cookie")).toBeNull();
     expect(await partyPageHtml(app, anasCookie)).toContain(
-      "<h1>Thanks for dining with us.</h1>",
+      "<h1>Thanks for dining with us</h1>",
     );
   });
 
@@ -796,7 +796,7 @@ describe("leaving", () => {
     expect(ready).toContain(leaveControl(anasCookie));
     expect(waiting).toContain("<h1>You&#x27;re on the waitlist</h1>");
     expect(waiting).toContain(leaveControl(bensCookie));
-    expect(checkedIn).toContain("<h1>You&#x27;re checked in.</h1>");
+    expect(checkedIn).toContain("<h1>You&#x27;re checked in</h1>");
     expect(checkedIn).not.toContain('/leave"');
   });
 
@@ -810,8 +810,8 @@ describe("leaving", () => {
     expect(response.headers.get("Location")).toBe(partyPath(anasCookie));
     expect(response.headers.get("Set-Cookie")).toBeNull();
     const card = await partyPageHtml(app, anasCookie);
-    expect(card).toContain("<title>You&#x27;ve left the waitlist.</title>");
-    expect(card).toContain("<h1>You&#x27;ve left the waitlist.</h1>");
+    expect(card).toContain("<title>You&#x27;ve left the waitlist</title>");
+    expect(card).toContain("<h1>You&#x27;ve left the waitlist</h1>");
     expect(card).toContain("Ana, party of 2");
     expect(card).not.toContain('id="party-link"');
     expect(card).not.toContain('/leave"');
@@ -838,7 +838,7 @@ describe("leaving", () => {
       expect(response.headers.get("Set-Cookie")).toBeNull();
     }
     expect(await partyPageHtml(app, anasCookie)).toContain(
-      "<h1>You&#x27;re checked in.</h1>",
+      "<h1>You&#x27;re checked in</h1>",
     );
   });
 
@@ -928,10 +928,10 @@ describe("the card on its own", () => {
 
     const card = await (await getCard(app, anasCookie)).text();
 
-    expect(card).toContain("You&#x27;re checked in.");
+    expect(card).toContain("You&#x27;re checked in");
     // The card carries its own title, so the live update can set the tab's.
     expect(card).toMatch(
-      /^<section class="card" data-state="in-service" data-title="You&#x27;re checked in.">/,
+      /^<section class="card" data-state="in-service" data-title="You&#x27;re checked in">/,
     );
   });
 
@@ -1229,5 +1229,72 @@ describe("compression", () => {
 
     expect(response.headers.get("Content-Encoding")).toBeNull();
     expect(await response.text()).toMatch(/^<!DOCTYPE html>/);
+  });
+});
+
+describe("icons", () => {
+  /** The card's state icon: last in the panel that says where you stand. */
+  function stateIcon(html: string): string | undefined {
+    return html.match(
+      /<div class="place"><div>.*?<\/div><svg [^>]*data-icon="([a-z]+)"[^>]*>.*?<\/svg><\/div>/,
+    )?.[1];
+  }
+
+  test("shows an icon beside where the party stands while something is happening", async () => {
+    const clock = movableClock();
+    const app = waitlistRoutes(waitlistService(await emptyStore(), clock.env));
+    const anasCookie = partyCookie(await postJoin(app, { ...ana, size: "6" }));
+    // Ana's 6 seats are held, so Ben's 5 don't fit: he waits.
+    const bensCookie = partyCookie(
+      await postJoin(app, { name: "Ben", email: "ben@example.com", size: "5" }),
+    );
+
+    expect(stateIcon(await partyPageHtml(app, anasCookie))).toBe("bell");
+    expect(stateIcon(await partyPageHtml(app, bensCookie))).toBe("hourglass");
+    await postCheckIn(app, anasCookie);
+    expect(stateIcon(await partyPageHtml(app, anasCookie))).toBe("restaurant");
+    // A party of 6 is served for 6 × 3 seconds.
+  });
+
+  test("shows no icon once the visit is over: the heading says it", async () => {
+    const clock = movableClock();
+    const app = waitlistRoutes(waitlistService(await emptyStore(), clock.env));
+    const anasCookie = partyCookie(await postJoin(app, ana));
+    const bensCookie = partyCookie(
+      await postJoin(app, { name: "Ben", email: "ben@example.com", size: "2" }),
+    );
+    await postCheckIn(app, anasCookie);
+    // A party of 2 is served for 2 × 3 seconds.
+    clock.advance(6000);
+    await postLeave(app, bensCookie);
+
+    for (const cookie of [anasCookie, bensCookie]) {
+      const html = await partyPageHtml(app, cookie);
+      // The panel holds only its words: no icon after them.
+      expect(html).toMatch(
+        /<div class="place"><div><p>[^<]*<\/p><\/div><\/div>/,
+      );
+    }
+  });
+
+  test("keeps the card's words as they are, with the icon hidden from screen readers", async () => {
+    const app = await routes();
+    const anasCookie = partyCookie(await postJoin(app, ana));
+
+    const html = await partyPageHtml(app, anasCookie);
+
+    expect(html).toContain("<h1>Your table is ready!</h1>");
+    expect(html).toContain('<p class="ahead">Check in now.</p>');
+    expect(html).toMatch(
+      /<div class="place"><div>.*?<\/div><svg aria-hidden="true" focusable="false"/,
+    );
+  });
+
+  test("labels the join form's fields with words only: the phone already fills in and explains them", async () => {
+    const html = await pageHtml("/");
+
+    expect(html).toContain('<label for="name">Name</label>');
+    expect(html).toContain('<label for="email">Email</label>');
+    expect(html).toContain('<label for="size">Party size</label>');
   });
 });

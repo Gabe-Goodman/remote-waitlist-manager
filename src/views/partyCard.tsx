@@ -5,6 +5,7 @@
 // Renders only: the route passes in the state and the site's origin.
 import type { Party, PartyState } from "../domain/waitlist.js";
 import { toFragment } from "./html.js";
+import { Icon, type IconName } from "./icons.js";
 import { cardTitles, messages } from "./messages.js";
 
 type PartyCardProps = {
@@ -24,6 +25,7 @@ export function cardFragment(props: PartyCardProps): string {
 export function PartyCard({ party, state, origin }: PartyCardProps) {
   const placeGone = state.kind === "done" || state.kind === "left";
   const inQueue = state.kind === "waiting" || state.kind === "ready";
+  const stateIcon = stateIcons[state.kind];
   return (
     // data-state lets the live update tell the states apart without
     // reading the wording; data-title gives it the tab's title.
@@ -34,10 +36,16 @@ export function PartyCard({ party, state, origin }: PartyCardProps) {
     >
       <h1>{cardTitles[state.kind]}</h1>
       {/* Where you stand comes first and largest: it's what a diner looks
-          for every time they glance at their phone. */}
+          for every time they glance at their phone. The state's icon sits
+          at the panel's right edge, beside the words it repeats. */}
       <div className="place">
-        <StateLine state={state} />
-        <p>{messages.partyLine(party.name, party.size)}</p>
+        <div>
+          <StateLine state={state} />
+          <p>{messages.partyLine(party.name, party.size)}</p>
+        </div>
+        {stateIcon && (
+          <Icon name={stateIcon} size={40} className="state-icon" />
+        )}
       </div>
       {/* A link, not a button, so nobody joins again the same evening by
           accident. */}
@@ -60,6 +68,16 @@ export function PartyCard({ party, state, origin }: PartyCardProps) {
     </section>
   );
 }
+
+// An icon only while something is happening: these are the states a diner
+// glances at again and again, and the icon says where they stand before they
+// read. Once the visit is over the heading is read once, and any symbol for
+// leaving (an arrow, a cross) looks like something to tap.
+const stateIcons: Partial<Record<PartyState["kind"], IconName>> = {
+  waiting: "hourglass",
+  ready: "bell",
+  "in-service": "restaurant",
+};
 
 function StateLine({ state }: { state: PartyState }) {
   switch (state.kind) {
@@ -126,8 +144,8 @@ function ShareLink({ link }: { link: string }) {
           className="custom"
           aria-label={messages.copyLink}
         >
-          <CopyIcon />
-          <CheckIcon />
+          <Icon name="copy" size={18} className="icon-copy" />
+          <Icon name="checkmark" size={18} className="icon-check" />
         </button>
         <span
           role="status"
@@ -140,46 +158,5 @@ function ShareLink({ link }: { link: string }) {
         {messages.partyLinkHint}
       </p>
     </div>
-  );
-}
-
-// Drawn here rather than taken from an icon library: two shapes don't
-// justify a dependency. currentColor follows the button's colour.
-function CopyIcon() {
-  return (
-    <svg
-      aria-hidden="true"
-      className="icon-copy"
-      width="18"
-      height="18"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
-      <rect x="9" y="9" width="12" height="12" rx="2" />
-      <path d="M5 15H4a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v1" />
-    </svg>
-  );
-}
-
-function CheckIcon() {
-  return (
-    <svg
-      aria-hidden="true"
-      className="icon-check"
-      width="18"
-      height="18"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
-      <path d="M5 12l5 5L20 7" />
-    </svg>
   );
 }
