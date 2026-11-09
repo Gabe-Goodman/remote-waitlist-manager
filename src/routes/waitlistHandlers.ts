@@ -86,11 +86,13 @@ export function waitlistHandlers(waitlist: WaitlistService) {
     // No such party: a visit that's over, or a link cut off or mistyped.
     // A page that says so, not a redirect to /: that would silently show
     // this browser's own party instead, or the join form to a friend whose
-    // group is already in line.
+    // group is already in line. 200, not 404: messaging apps show a link's
+    // title only for a page that loaded, so the sender sees the link is
+    // broken before sending it.
     if (!found) {
       const ownPartyToken = getCookie(c, partyTokenCookie);
       const ownParty = ownPartyToken && (await waitlist.find(ownPartyToken));
-      return c.html(unknownPartyPage(Boolean(ownParty)), 404);
+      return c.html(unknownPartyPage(Boolean(ownParty)));
     }
     const { party, state } = found;
     return c.html(partyPage({ party, state, origin: siteOrigin(c) }));

@@ -459,7 +459,9 @@ describe("the party's link", () => {
     });
     const page = await response.text();
 
-    expect(response.status).toBe(404);
+    // 200, not 404: messaging apps show a link's title only for a page
+    // that loaded, so the sender sees this one is broken before sending it.
+    expect(response.status).toBe(200);
     expect(response.headers.get("Set-Cookie")).toBeNull();
     expect(page).toContain("<h1>We couldn&#x27;t find this party</h1>");
     expect(page).toContain(
@@ -473,7 +475,7 @@ describe("the party's link", () => {
     const response = await (await routes()).request("/party/nope");
     const page = await response.text();
 
-    expect(response.status).toBe(404);
+    expect(response.status).toBe(200);
     expect(page).toContain("<h1>We couldn&#x27;t find this party</h1>");
     expect(page).toContain('<a href="/">Join the waitlist</a>');
   });
@@ -631,7 +633,9 @@ describe("checking in", () => {
 
     expect(response.status).toBe(303);
     expect(response.headers.get("Location")).toBe("/party/gone");
-    expect((await app.request("/party/gone")).status).toBe(404);
+    expect(await (await app.request("/party/gone")).text()).toContain(
+      "<h1>We couldn&#x27;t find this party</h1>",
+    );
     expect((await store.load()).waitlist.parties).toEqual([]);
   });
 
@@ -863,7 +867,9 @@ describe("leaving", () => {
     const checkedIn = await postLeave(app, anasCookie);
 
     expect(noParty.headers.get("Location")).toBe("/party/gone");
-    expect((await app.request("/party/gone")).status).toBe(404);
+    expect(await (await app.request("/party/gone")).text()).toContain(
+      "<h1>We couldn&#x27;t find this party</h1>",
+    );
     expect(checkedIn.headers.get("Location")).toBe(partyPath(anasCookie));
     for (const response of [noParty, checkedIn]) {
       expect(response.status).toBe(303);
