@@ -37,10 +37,17 @@ export function waitlistHandlers(waitlist: WaitlistService) {
     // group may not be the same. It only shows the form; nothing changes
     // until the diner joins, so a reload, a prefetch or a link preview is
     // harmless. A party that still holds a place has nothing to start over.
+    // Filled in only for the browser that joined as the party; any other
+    // browser with the link (a friend's phone, a private window) gets it
+    // empty, so it never shows the party's email or joins as that diner.
     const rejoin = c.req.query("rejoin");
     const previous = rejoin ? await waitlist.find(rejoin) : undefined;
     if (previous && !holdsPlace(previous.state)) {
-      const { name, email } = previous.party;
+      const joinedAsParty =
+        getCookie(c, partyTokenCookie) === previous.party.token;
+      const { name, email } = joinedAsParty
+        ? previous.party
+        : { name: "", email: "" };
       const waiting = await waitlist.waitingCount();
       return c.html(
         joinPage({
@@ -69,19 +76,16 @@ export function waitlistHandlers(waitlist: WaitlistService) {
 
   // A party's own page. The token is 128 random bits, so the link is the key
   // to the party: whoever has it can see it and act for it, which is how a
-  // group shares one, and the address bar is the link to share. Opening a
-  // friend's link shows the friend's party; this browser keeps following its
-  // own, so it only remembers the link's party when it has no active party
-  // of its own.
+  // group shares one, and the address bar is the link to share. Opening it
+  // only shows the party: it never becomes this browser's own (only joining
+  // does that), so a friend's phone that opened the link before joining can
+  // still join for its own group.
   // Typed with its path, so the party token in the URL is known to be there.
   async function showPartyPage(c: Context<BlankEnv, "/party/:partyToken">) {
     const found = await waitlist.find(c.req.param("partyToken"));
     // No such party: a mistyped or very old link.
     if (!found) return c.redirect("/", 303);
     const { party, state } = found;
-    if (!(await holdsActiveParty(c, party.token))) {
-      setPartyCookie(c, party.token);
-    }
     return c.html(partyPage({ party, state, origin: siteOrigin(c) }));
   }
 
@@ -96,15 +100,6 @@ export function waitlistHandlers(waitlist: WaitlistService) {
     if (!found) return c.body(null, 204);
     const { party, state } = found;
     return c.html(cardFragment({ party, state, origin: siteOrigin(c) }));
-  }
-
-  // Whether this browser follows a party, other than `except`, that still
-  // holds a place: one it mustn't lose by following another.
-  async function holdsActiveParty(c: Context, except: string) {
-    const ownPartyToken = getCookie(c, partyTokenCookie);
-    if (!ownPartyToken || ownPartyToken === except) return false;
-    const own = await waitlist.find(ownPartyToken);
-    return own !== undefined && holdsPlace(own.state);
   }
 
   async function joinFromForm(c: Context) {

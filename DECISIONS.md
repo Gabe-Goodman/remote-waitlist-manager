@@ -67,7 +67,7 @@ The next step for read cost, before either of these: cache the waitlist in memor
 - A unique index on `parties.email` doesn't help: MongoDB's unique indexes apply across documents, not within one document's array.
 
 ## Join page
-- Each party has its own page, `/party/<token>`, so the address bar is the link to share; `/` is the join form, or sends a browser with a party to its page. The cookie only remembers which party this browser follows. Earlier, every state lived at `/` behind the cookie: the address bar shared nothing, and it felt like an SPA.
+- Each party has its own page, `/party/<token>`, so the address bar is the link to share; `/` is the join form, or sends a browser with a party to its page. The cookie only remembers which party this browser joined as. Earlier, every state lived at `/` behind the cookie: the address bar shared nothing, and it felt like an SPA.
 - The cookie is HttpOnly (page scripts can't read it), SameSite=Lax (other sites can't post with it), Secure over HTTPS, and lasts 6 hours, longer than any wait.
 - Post/Redirect/Get: a successful join answers 303 to the party's page, so a reload or the back button never submits the form twice.
 - The form is plain HTML that works without JavaScript. `noValidate` on the form, so every error comes from the server, worded the same in every browser; `required` stays on the fields so screen readers announce them. Party size starts on a disabled "Choose…", so skipping it gives an error instead of joining as 1.
@@ -120,9 +120,10 @@ The next step for read cost, before either of these: cache the waitlist in memor
 - One animation: the bell rings once (1 s) when the ready card appears, on load or when the live update swaps it in, the same moment the phone vibrates and the tab title changes. The hourglass stays still: minutes of motion would read as "loading" and pull the eye for nothing. Nothing moves for a phone set to reduce motion.
 
 ## Finding your party again
-- The party's link (`/party/<token>`, 128 random bits) is the key to the party. Opening it in a browser with no active party puts the party in that browser. Sharing it shares control: anyone in the group can check in. There's no read-only link, because the server can't tell the diner's other phone from a friend's.
+- The party's link (`/party/<token>`, 128 random bits) is the key to the party. Opening it in another browser shows the party there, and nothing more: only joining makes a party a browser's own, the one `/` leads to. Sharing it shares control: anyone with it can check in or leave for the party, and the card's hint under the link says so. There's no read-only link, because the server can't tell the diner's other phone from a friend's.
 - A friend's link shows the friend's card, and its buttons act on that party: actions use the party in the URL, not the cookie, so nobody can act on the wrong party. The token in the address bar is the trade-off (history, screenshots); in production I'd email the link.
-- One active party per browser. Opening a friend's link doesn't replace this browser's own party, and a stale join form (back button, old tab) goes back to the party's page instead of changing details or adding a second place. Another group joins from another phone.
+- One active party per browser: a stale join form (back button, old tab) goes back to the party's page instead of changing details or adding a second place. Another group joins from another phone.
+- Opening a link used to make the party the browser's own when it had none, so the diner's other phone found it again at `/`. But then a friend's phone that opened the link before joining was sent back to the friend's card by every way to the join form, and couldn't join for its own group. Fixing that while keeping the adoption took a second cookie (how the browser got the party), a way out ("Not with this party? Join on your own") and a rule for the rejoin form that knew both. Not adopting at all needs none of that: the other phone keeps the link (open tab, history, bookmark), which is how a link works anyway.
 - Pages are sent `Cache-Control: no-store`, so the back button asks the server for the current state. POST answers (a refused join) stay cacheable, so going back doesn't trigger "Confirm Form Resubmission".
 - The card shows the full link ready to copy. The Copy button (the `<copy-link>` island) is hidden without JavaScript, and it falls back to the older copy method on a phone reaching the app over plain HTTP. The phone's Share sheet needs HTTPS, so it's future work.
 - `/party/<token>` is singular because it reads as "this party" in a shared message.
@@ -143,7 +144,7 @@ The next step for read cost, before either of these: cache the waitlist in memor
 
 ## Joining again
 - The finished card has a quiet text link, not a button, so nobody rejoins the same evening by accident.
-- `/?rejoin=<token>`: the home page's join form, filled in with the party's name and email (size asked again). It's a query option on `/`, not a page of its own, so one handler renders the join form; it changes nothing until the diner joins, so a reload or a link preview is harmless.
+- `/?rejoin=<token>`: the home page's join form, filled in with the party's name and email (size asked again), only for the browser that joined as the party (its cookie names it). Any other browser with the link gets the form empty: a friend's phone would otherwise join as the friend, a friend with a party of their own would see a form that only sends them back to it, and a private window would show the party's email to anyone holding the link. The price: a diner whose browser lost the cookie (another browser, or after its 6 hours) types their name and email again. It's a query option on `/`, not a page of its own, so one handler renders the join form; it changes nothing until the diner joins, so a reload or a link preview is harmless.
 
 ## Double taps
 - The join form carries a hidden key, new for each fresh form and kept when the form comes back with errors. A submission whose key matches an active party returns that party (same cookie, same card) instead of the duplicate-email notice.

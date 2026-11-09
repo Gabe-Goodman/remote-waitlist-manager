@@ -26,8 +26,8 @@ The restaurant has 10 seats, and a party is served for 3 seconds per person. Use
 2. **Browser B:** join as a party of **9**. A holds 2 seats and 2 + 9 > 10, so B waits: "1 party ahead of you."
 3. **A:** tap **Check in**. A is seated for 6 seconds ("Enjoy your meal."), then the card turns to "Thanks for dining" on its own. Meanwhile B, without reloading, shows "You're next. Stay close."
 4. **B**, still without reloading: the moment A's meal ends, B's card turns to "Your table is ready!" with the Check-in button, and the tab title changes.
-5. Copy **B's link** (the address bar, or "Your party's link") into browser A: A now shows B's card, and tapping Check in there checks in B. Anyone with the link can act for the party.
-6. On a finished or left card, "Join the waitlist again" opens the form with the name and email filled in; the party goes to the back of the line.
+5. Copy **B's link** (the address bar, or "Your party's link") into browser A: A now shows B's card, and tapping Check in there checks in B. Anyone with the link can act for the party. Opening a link only shows a party: only joining makes it the browser's own, the one `/` leads to.
+6. On a finished or left card, "Join the waitlist again" opens the form with the name and email filled in; the party goes to the back of the line. Only the browser that joined as the party gets it filled in; any other, like A on B's card, gets it empty.
 
 Try the edges too: join twice with the same email, double-tap Join, leave the waitlist, or turn JavaScript off (every screen still works; the card updates on reload instead).
 
@@ -60,7 +60,7 @@ Icons (IBM's Carbon set, which TableKit's React components use) are inline SVGs 
 
 | Method | Path | What it does |
 |---|---|---|
-| GET | `/` | The join form; a browser that has a party goes to its page. `?rejoin=<token>`: the form filled in from a party whose visit is over. |
+| GET | `/` | The join form; a browser that has a party goes to its page. `?rejoin=<token>`: the form filled in from a party whose visit is over (empty on any browser but the one that joined as that party). |
 | POST | `/parties` | Join (the form). On success, to the party's page. |
 | GET | `/party/:token` | The party's own page: its state, its link, Check in and Leave. The address bar is the link to share. |
 | GET | `/party/:token/card` | The card alone, for the live update. |
@@ -92,7 +92,7 @@ Dependencies point one way: routes → services → storage; the domain is pure 
 | Requirement | Tests |
 |---|---|
 | Join with name, email and party size | domain "validating the join form"; routes "joins and sends the diner to their page", "keeps what the diner typed and shows each error next to its field"; e2e "joins the waitlist, lands on the party's page and stays there after a reload" |
-| See your place across browser sessions | routes "shows a party's page at its link in another browser, and remembers it there"; e2e "views the party from another browser session" |
+| See your place across browser sessions | routes "shows a party's page at its link in another browser, which can still join its own"; e2e "views the party from another browser session" |
 | Check-in button when the party is ready | domain "makes every party at the front ready while they fit"; routes "shows a party whose table is ready the Check-in button"; e2e "shows the Check-in button the moment the table is ready, without a reload" |
 | On check-in: off the queue, seats taken, service starts | domain "checks in a party whose table is ready", "holds the seats it checked in with until its service ends", "serves a party for 3 seconds per person" |
 | Next party gets Check-in when seats free up; otherwise waits | domain "counts the seats of parties in service until each service ends, then frees them", "keeps everyone behind a party that doesn't fit waiting, even a party that would fit"; e2e "lets the next party check in once a service ends, and the first join again" |
@@ -164,7 +164,7 @@ The e2e tests start their own copy of the app and stop it when they finish, the 
 - **A no-show holds the line.** A ready party keeps its table until it checks in or leaves. Next: a host view to clear no-shows, or a check-in time limit that stores "ready since" the first time a request sees a party ready.
 - **No alerts on a locked phone.** The card updates while the page is open and refreshes when the phone is unlocked; nothing reaches a locked phone. Next: an email or text when the table is ready.
 - **No history is kept.** A party is deleted a day after it finishes or leaves, so there's nothing to report on. Next, if the restaurant wants reports: copy finished parties to a history collection before forgetting them (see DECISIONS.md).
-- **The link is the key to the party.** Anyone with it can see the party and check in, which is how a group shares one; it shows up in browser history. Next: email the link instead of relying on people keeping it private.
+- **The link is the key to the party.** Anyone with it can see the party, check in and leave, which is how a group shares one; it shows up in browser history. Next: email the link instead of relying on people keeping it private.
 - **One app server is assumed** (one clock, one writer); several restaurants would each get their own document.
 
 ## How I worked

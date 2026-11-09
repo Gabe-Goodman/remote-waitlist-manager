@@ -407,15 +407,20 @@ describe("your place in the queue", () => {
 });
 
 describe("the party's link", () => {
-  test("shows a party's page at its link in another browser, and remembers it there", async () => {
+  test("shows a party's page at its link in another browser, which can still join its own", async () => {
     const app = await routes();
     const anasCookie = partyCookie(await postJoin(app, ana));
 
     const opened = await app.request(partyPath(anasCookie));
+    const home = await app.request("/");
 
     expect(opened.status).toBe(200);
     expect(await opened.text()).toContain("Ana, party of 2");
-    expect(partyCookie(opened)).toBe(anasCookie);
+    // Only joining makes a party this browser's own: a friend's phone that
+    // opened the link before joining still gets the join form at /.
+    expect(opened.headers.get("Set-Cookie")).toBeNull();
+    expect(home.status).toBe(200);
+    expect(await home.text()).toMatch(/<form [^>]*action="\/parties"/);
   });
 
   test("sends a browser that has a party from / to that party's page", async () => {
@@ -445,17 +450,6 @@ describe("the party's link", () => {
     expect(await partyPageHtml(app, bensCookie)).toContain("Ben, party of 2");
   });
 
-  test("replaces a cookie whose party is no longer on the waitlist", async () => {
-    const app = await routes();
-    const anasCookie = partyCookie(await postJoin(app, ana));
-
-    const opened = await app.request(partyPath(anasCookie), {
-      headers: { Cookie: "partyToken=gone" },
-    });
-
-    expect(partyCookie(opened)).toBe(anasCookie);
-  });
-
   test("sends an unknown link to the join form", async () => {
     const response = await (await routes()).request("/party/nope");
 
@@ -480,7 +474,7 @@ describe("the party's link", () => {
       '<label for="party-link">Your party&#x27;s link</label>',
     );
     expect(card).toContain(
-      '<p id="party-link-hint" class="secondary">Share it with the rest of your party, or open it on another device. Anyone with this link can see your place on the waitlist and check in for you.</p>',
+      '<p id="party-link-hint" class="secondary">Share it with the rest of your party, or open it on another device. Anyone with this link can see your place on the waitlist, and check in or leave for you.</p>',
     );
     expect(card).not.toContain("sms:");
     expect(card).not.toContain("mailto:");
@@ -673,24 +667,6 @@ describe("checking in", () => {
     expect(newCookie).toMatch(/^partyToken=.+/);
     expect(newCookie).not.toBe(anasCookie);
   });
-
-  test("lets a finished party's browser follow another party from its link", async () => {
-    const clock = movableClock();
-    const app = waitlistRoutes(waitlistService(await emptyStore(), clock.env));
-    const anasCookie = partyCookie(await postJoin(app, ana));
-    await postCheckIn(app, anasCookie);
-    const bensCookie = partyCookie(
-      await postJoin(app, { name: "Ben", email: "ben@example.com", size: "2" }),
-    );
-    clock.advance(6000);
-
-    const opened = await app.request(partyPath(bensCookie), {
-      headers: { Cookie: anasCookie },
-    });
-
-    expect(opened.status).toBe(200);
-    expect(partyCookie(opened)).toBe(bensCookie);
-  });
 });
 
 describe("joining again", () => {
@@ -720,8 +696,9 @@ describe("joining again", () => {
     const { app, clock, anasCookie } = await checkedInParty();
     clock.advance(6000);
 
-    // The link alone says which party: it works without the cookie too.
-    const response = await app.request(rejoinPath(anasCookie));
+    const response = await app.request(rejoinPath(anasCookie), {
+      headers: { Cookie: anasCookie },
+    });
 
     const html = await response.text();
     expect(html).toMatch(/<form [^>]*action="\/parties"/);
@@ -733,6 +710,29 @@ describe("joining again", () => {
     expect(await partyPageHtml(app, anasCookie)).toContain(
       "<h1>Thanks for dining</h1>",
     );
+  });
+
+  test("fills in the join-again form only for the browser that joined as the party", async () => {
+    const { app, clock, anasCookie } = await checkedInParty();
+    const bensCookie = partyCookie(
+      await postJoin(app, { ...ana, name: "Ben", email: "ben@example.com" }),
+    );
+    clock.advance(6000);
+
+    // A friend's phone that opened Ana's link, or a private window.
+    const noParty = await app.request(rejoinPath(anasCookie));
+    // A friend whose own party is still waiting, on Ana's finished card.
+    const friendWithParty = await app.request(rejoinPath(anasCookie), {
+      headers: { Cookie: bensCookie },
+    });
+
+    for (const response of [noParty, friendWithParty]) {
+      expect(response.status).toBe(200);
+      const form = await response.text();
+      expect(form).toMatch(/<form [^>]*action="\/parties"/);
+      expect(tagWithId(form, "name")).toContain('value=""');
+      expect(form).not.toContain("ana@example.com");
+    }
   });
 
   test("gives the join-again form a new join key", async () => {
