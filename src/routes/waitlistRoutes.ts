@@ -3,11 +3,17 @@
 import { Hono } from "hono";
 import { bodyLimit } from "hono/body-limit";
 import { compress } from "hono/compress";
+import { trimTrailingSlash } from "hono/trailing-slash";
 import type { WaitlistService } from "../services/waitlistService.js";
 import { waitlistHandlers } from "./waitlistHandlers.js";
 
 export function waitlistRoutes(waitlist: WaitlistService): Hono {
   const routes = new Hono();
+
+  // A shared link can arrive with a slash added at the end (some messaging
+  // apps do it). A GET that matches no route only because of that slash is
+  // sent to the same address without it; routes that match are untouched.
+  routes.use("*", trimTrailingSlash());
 
   // Every page carries TableKit's 115 KB stylesheet; gzipped it's about
   // 15 KB, which matters on a slow phone connection.
