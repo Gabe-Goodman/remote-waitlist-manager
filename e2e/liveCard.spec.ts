@@ -21,6 +21,34 @@ async function joinAsDiner(
   await page.getByRole("button", { name: "Join the waitlist" }).click();
 }
 
+test("doesn't swap the card when only the page changed, so the bell rings once", async ({
+  page,
+}) => {
+  // A party of 1 in the empty restaurant is ready at once, and stays ready.
+  await joinAsDiner(page, { name: "Lee", size: "1" });
+  const card = page.locator("live-card > section.card");
+  await expect(card).toHaveAttribute("data-state", "ready");
+  // A property, not an attribute, so it changes nothing in the card's HTML:
+  // a swapped-in card won't have it.
+  await card.evaluate((el) => Object.assign(el, { original: true }));
+
+  // Opening Leave changes the card in the page (its <details> is open), not
+  // the party. Each swap would ring the bell again.
+  await page.getByText("Leave the waitlist").click();
+  // The third request starts only once the second answer has been handled.
+  for (let poll = 0; poll < 3; poll++) {
+    await page.waitForResponse((response) => response.url().endsWith("/card"));
+  }
+
+  expect(await card.evaluate((el) => "original" in el)).toBe(true);
+
+  // Leave, so the next journey has the empty restaurant it needs.
+  await page.getByRole("button", { name: "Yes, leave" }).click();
+  await expect(
+    page.getByRole("heading", { name: "You've left the waitlist" }),
+  ).toBeVisible();
+});
+
 test("shows the Check-in button the moment the table is ready, without a reload", async ({
   browser,
   page,
