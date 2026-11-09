@@ -86,9 +86,15 @@ test("views the party from another browser session", async ({
   ).toBeVisible();
   await expect(otherPage.getByText("Bea, party of 3")).toBeVisible();
 
-  // The link left the party in this browser too: no link needed any more.
-  await otherPage.reload();
-  await expect(otherPage.getByText("Bea, party of 3")).toBeVisible();
+  // Opening the link didn't make Bea's party this browser's own: it can
+  // still join for a group of its own.
+  await otherPage.goto("/");
+  await fillJoinForm(otherPage, {
+    name: "Cal",
+    email: uniqueEmail("cal"),
+    size: "2",
+  });
+  await expect(otherPage.getByText("Cal, party of 2")).toBeVisible();
   await other.close();
 });
 
