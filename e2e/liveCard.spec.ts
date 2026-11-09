@@ -38,6 +38,7 @@ test("shows the Check-in button the moment the table is ready, without a reload"
   const other = await browser.newContext({
     ...(test.info().project.use as BrowserContextOptions),
     javaScriptEnabled: true,
+    permissions: ["clipboard-read", "clipboard-write"],
   });
   const otherPage = await other.newPage();
   await joinAsDiner(otherPage, { name: "Max", size: "10" });
@@ -54,6 +55,15 @@ test("shows the Check-in button the moment the table is ready, without a reload"
   });
   await expect(checkInButton(otherPage)).toBeVisible();
   await expect(otherPage).toHaveTitle("Your table is ready!");
+
+  // The card swapped in brought its own Copy button, and it works: the
+  // <copy-link> island sets itself up when it's added to the page.
+  await otherPage.getByRole("button", { name: "Copy link" }).click();
+  await expect(otherPage.getByRole("status")).toHaveText("Link copied");
+  const link = await otherPage.getByLabel("Your party's link").inputValue();
+  expect(await otherPage.evaluate(() => navigator.clipboard.readText())).toBe(
+    link,
+  );
 
   // Max leaves, so the next journeys start with every seat free once Lia's
   // short service ends.

@@ -48,9 +48,9 @@ Every change is **read, apply a rule, save only if nobody saved in between**: `r
 Every save also **forgets parties that finished or left more than a day ago**, in the same write. They're outside every rule, so nobody's place changes, and the document every request reads stays the size of one day instead of growing with history nothing reads. Tonight's links keep working; a link from a past day goes to the home page. Why one document, its limits (16 MB, read size) and what I'd do in production are in [DECISIONS.md](DECISIONS.md).
 
 ### Pages: server-rendered, with two islands
-Pattern: **Islands.** Every page is rendered on the server with React (`renderToString`), works without JavaScript, and is fast on a slow phone (TableKit's stylesheet and the page's scripts are inlined, so there's one request). Two small dependency-free scripts add interactivity:
-- **the live card** (`browser/liveCard.js`) fetches the party's card every 2 seconds, one request at a time, and swaps it in when it changed; it refreshes at once when the phone is unlocked, and sets the tab title and vibrates when the table is ready;
-- **the Copy button** (`browser/copyLink.js`) copies the party's link.
+Pattern: **Islands.** Every page is rendered on the server with React (`renderToString`), works without JavaScript, and is fast on a slow phone (TableKit's stylesheet and the page's scripts are inlined, so there's one request). Two small dependency-free islands add interactivity. Each is a custom element, the same shape as Astro's `<astro-island>`: a wrapper around its part of the page, its settings as attributes, and its own setup and cleanup. It finds everything it uses inside itself, so it works wherever it's put, including inside a card the live update swaps in. Without JavaScript each is a plain wrapper.
+- **`<live-card src="/party/<token>/card">`** (`browser/liveCard.js`) fetches the party's card every 2 seconds, one request at a time, and swaps it in when it changed; it refreshes at once when the phone is unlocked, and sets the tab title and vibrates when the table is ready;
+- **`<copy-link>`** (`browser/copyLink.js`) holds the link's field and its Copy button, and copies the party's link.
 
 No React runs in the browser: the live card swaps in HTML the server rendered, so there is one renderer and nothing to hydrate.
 
@@ -73,14 +73,14 @@ Icons (IBM's Carbon set, which TableKit's React components use) are inline SVGs 
 ```
 browser/                     what runs in the diner's browser, inlined into the page
 ├── page.css                 the page's own CSS, on top of TableKit's classless stylesheet
-├── copyLink.js              the Copy button
-└── liveCard.js              keeps the card up to date
+├── copyLink.js              <copy-link>: the Copy button
+└── liveCard.js              <live-card>: keeps the card up to date
 src/                         what runs on the server
 ├── domain/waitlist.ts       the rules: pure functions of (waitlist, now); no database, clock or HTTP
 ├── services/                use cases: load → rule → save if unchanged → retry on conflict
 ├── storage/                 MongoDB only: the one versioned document
 ├── routes/                  HTTP only: waitlistRoutes.ts lists the URLs, waitlistHandlers.ts says what each does
-├── views/                   render only: React components that return finished HTML; messages.ts holds every word a diner reads
+├── views/                   render only: React components that return finished HTML; islands.tsx has the islands' components (LiveCard, CopyLink) and the script that defines them; messages.ts holds every word a diner reads
 └── server.ts                wiring: settings, MongoDB, the real clock, graceful shutdown
 e2e/                         Playwright journeys in a phone-sized browser
 ```

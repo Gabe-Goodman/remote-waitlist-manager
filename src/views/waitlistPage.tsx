@@ -10,8 +10,8 @@ import {
   type Party,
   type PartyState,
 } from "../domain/waitlist.js";
-import { copyLinkJs, liveCardJs } from "./browserFiles.js";
 import { toHtml } from "./html.js";
+import { islandsJs, LiveCard } from "./islands.js";
 import { Layout } from "./layout.js";
 import {
   cardTitles,
@@ -65,15 +65,14 @@ export function joinPage(props: JoinPageProps): string {
 function WaitlistPage(props: WaitlistPageProps) {
   if (props.party) {
     return (
-      <Layout
-        title={cardTitles[props.state.kind]}
-        script={`${copyLinkJs}\n${liveCardJs}`}
-      >
-        <PartyCard
-          party={props.party}
-          state={props.state}
-          origin={props.origin}
-        />
+      <Layout title={cardTitles[props.state.kind]} script={islandsJs}>
+        <LiveCard src={`/party/${props.party.token}/card`}>
+          <PartyCard
+            party={props.party}
+            state={props.state}
+            origin={props.origin}
+          />
+        </LiveCard>
       </Layout>
     );
   }

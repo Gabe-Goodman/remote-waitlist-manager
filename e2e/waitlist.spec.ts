@@ -52,7 +52,7 @@ test("joins the waitlist, lands on the party's page and stays there after a relo
     ),
   ).toBeVisible();
   // Without JavaScript the Copy button would do nothing, so it stays hidden.
-  await expect(page.locator("#copy-link")).toBeHidden();
+  await expect(page.getByRole("button", { name: "Copy link" })).toBeHidden();
 
   await page.reload();
 

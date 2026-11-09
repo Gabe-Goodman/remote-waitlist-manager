@@ -1,6 +1,6 @@
 // The HTML shell every page shares: phone-sized and readable. A page may
-// pass a script for its <head>; only the card page does, for its Copy button
-// and its live update, and every page works without it.
+// pass a script for its <head>; only the card page does, to define its two
+// islands (islands.tsx), and every page works without it.
 import { readFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import type { ReactNode } from "react";
@@ -36,7 +36,8 @@ export function Layout({
             selectors are as specific as TableKit's. */}
         <style>{tablekitCss}</style>
         <style>{pageCss}</style>
-        {/* In the <head>, so it runs before the body is drawn. */}
+        {/* In the <head>, so the islands are defined before the body is
+            read: each is set up as the browser reaches it. */}
         {script && <script>{script}</script>}
       </head>
       <body>
