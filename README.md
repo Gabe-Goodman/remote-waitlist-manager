@@ -45,7 +45,7 @@ The whole waitlist is **one MongoDB document**, `{ _id: "main", version, parties
 
 Every change is **read, apply a rule, save only if nobody saved in between**: `replaceOne({ _id: "main", version }, { version: version + 1, parties })`. MongoDB writes one document atomically, so if two diners save at once, one save wins and the other finds the version moved on, reads the waitlist again, reruns the rule on the fresh line and saves too, up to 10 tries (then "busy, please tap Join again"). That one check prevents lost updates, duplicates and overbooking.
 
-Every save also **forgets parties that finished or left more than a day ago**, in the same write. They're outside every rule, so nobody's place changes, and the document every request reads stays the size of one day instead of growing with history nothing reads. Tonight's links keep working; a link from a past day goes to the home page. Why one document, its limits (16 MB, read size) and what I'd do in production are in [DECISIONS.md](DECISIONS.md).
+Every save also **forgets parties that finished or left more than a day ago**, in the same write. They're outside every rule, so nobody's place changes, and the document every request reads stays the size of one day instead of growing with history nothing reads. Tonight's links keep working; a link from a past day shows a page saying the party couldn't be found. Why one document, its limits (16 MB, read size) and what I'd do in production are in [DECISIONS.md](DECISIONS.md).
 
 ### Pages: server-rendered, with two islands
 Pattern: **Islands.** Every page is rendered on the server with React (`renderToString`), works without JavaScript, and is fast on a slow phone (TableKit's stylesheet and the page's scripts are inlined, so there's one request). Two small dependency-free islands add interactivity. Each is a custom element, the same shape as Astro's `<astro-island>`: a wrapper around its part of the page, its settings as attributes, and its own setup and cleanup. It finds everything it uses inside itself, so it works wherever it's put, including inside a card the live update swaps in, and it brings its own script: a page that renders an island's element gets that island's script in its `<head>`. Without JavaScript each is a plain wrapper.
@@ -62,7 +62,7 @@ Icons (IBM's Carbon set, which TableKit's React components use) are inline SVGs 
 |---|---|---|
 | GET | `/` | The join form; a browser that has a party goes to its page. `?rejoin=<token>`: the form filled in from a party whose visit is over (empty on any browser but the one that joined as that party). |
 | POST | `/parties` | Join (the form). On success, to the party's page. |
-| GET | `/party/:token` | The party's own page: its state, its link, Check in and Leave. The address bar is the link to share. |
+| GET | `/party/:token` | The party's own page: its state, its link, Check in and Leave. The address bar is the link to share. A token that matches no party: 404, "We couldn't find that party", with one link to `/` ("Go to your party" or "Join the waitlist"). |
 | GET | `/party/:token/card` | The card alone, for the live update. |
 | POST | `/party/:token/check-in` | Check the party in, if its table is ready. |
 | POST | `/party/:token/leave` | Take the party off the waitlist. |

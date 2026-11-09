@@ -8,7 +8,7 @@ import { HTTPException } from "hono/http-exception";
 import type { BlankEnv } from "hono/types";
 import type { JoinForm, PartyState } from "../domain/waitlist.js";
 import type { WaitlistService } from "../services/waitlistService.js";
-import { errorPage } from "../views/errorPage.js";
+import { errorPage, unknownPartyPage } from "../views/errorPage.js";
 import { cardFragment } from "../views/partyCard.js";
 import { joinPage, partyPage } from "../views/waitlistPage.js";
 
@@ -83,8 +83,15 @@ export function waitlistHandlers(waitlist: WaitlistService) {
   // Typed with its path, so the party token in the URL is known to be there.
   async function showPartyPage(c: Context<BlankEnv, "/party/:partyToken">) {
     const found = await waitlist.find(c.req.param("partyToken"));
-    // No such party: a mistyped or very old link.
-    if (!found) return c.redirect("/", 303);
+    // No such party: a visit that's over, or a link cut off or mistyped.
+    // A page that says so, not a redirect to /: that would silently show
+    // this browser's own party instead, or the join form to a friend whose
+    // group is already in line.
+    if (!found) {
+      const ownPartyToken = getCookie(c, partyTokenCookie);
+      const ownParty = ownPartyToken && (await waitlist.find(ownPartyToken));
+      return c.html(unknownPartyPage(Boolean(ownParty)), 404);
+    }
     const { party, state } = found;
     return c.html(partyPage({ party, state, origin: siteOrigin(c) }));
   }
@@ -149,14 +156,14 @@ export function waitlistHandlers(waitlist: WaitlistService) {
   // Acts on the party in the URL, not the cookie's: a friend's phone on the
   // friend's page checks in the friend's party. Success or refusal, the
   // answer is the same: the party's page shows its real state (checked in,
-  // still waiting), so no separate notice is needed; an unknown party goes
-  // to the join form. 303, like joining, so a reload never posts again.
+  // still waiting, or no such party), so no separate notice is needed. 303,
+  // like joining, so a reload never posts again.
   async function checkInFromCard(
     c: Context<BlankEnv, "/party/:partyToken/check-in">,
   ) {
     const partyToken = c.req.param("partyToken");
-    const outcome = await waitlist.checkIn(partyToken);
-    return c.redirect(afterAction(outcome, partyToken), 303);
+    await waitlist.checkIn(partyToken);
+    return c.redirect(partyPath(partyToken), 303);
   }
 
   // Like check-in: whatever happened (left, or refused because it's seated,
@@ -166,8 +173,8 @@ export function waitlistHandlers(waitlist: WaitlistService) {
     c: Context<BlankEnv, "/party/:partyToken/leave">,
   ) {
     const partyToken = c.req.param("partyToken");
-    const outcome = await waitlist.leave(partyToken);
-    return c.redirect(afterAction(outcome, partyToken), 303);
+    await waitlist.leave(partyToken);
+    return c.redirect(partyPath(partyToken), 303);
   }
 
   async function showHealth(c: Context) {
@@ -211,17 +218,6 @@ function retryPath(c: Context): string {
 // A party's own page.
 function partyPath(partyToken: string): string {
   return `/party/${partyToken}`;
-}
-
-// Back to the party's page after an action, or to the join form if there's
-// no such party.
-function afterAction(
-  outcome: { ok: true } | { ok: false; reason: string },
-  partyToken: string,
-): string {
-  return !outcome.ok && outcome.reason === "not-found"
-    ? "/"
-    : partyPath(partyToken);
 }
 
 // The site's address as this request reached it, so a shared link points
