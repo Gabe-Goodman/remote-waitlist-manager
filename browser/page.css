@@ -43,6 +43,13 @@ button {
 .secondary {
   color: var(--text-subtle);
 }
+/* Below the card and set apart by a rule: it's for a browser that isn't the
+   party's own, not one of the party's controls. */
+.other-group {
+  margin-top: var(--spacing-l7);
+  padding-top: var(--spacing-l5);
+  border-top: 1px solid var(--border);
+}
 /* Fields at 16px or more, so phones don't zoom in when one is tapped:
    TableKit's small fields are 14px. */
 input,

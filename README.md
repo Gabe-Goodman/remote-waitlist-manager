@@ -165,6 +165,7 @@ The e2e tests start their own copy of the app and stop it when they finish, the 
 - **No alerts on a locked phone.** The card updates while the page is open and refreshes when the phone is unlocked; nothing reaches a locked phone. Next: an email or text when the table is ready.
 - **No history is kept.** A party is deleted a day after it finishes or leaves, so there's nothing to report on. Next, if the restaurant wants reports: copy finished parties to a history collection before forgetting them (see DECISIONS.md).
 - **The link is the key to the party.** Anyone with it can see the party, check in and leave, which is how a group shares one; it shows up in browser history. Next: email the link instead of relying on people keeping it private.
+- **Joining again makes a new link.** A party that left or finished and joins again is a new party with a new link; anyone holding the old link still sees the old visit's last card, not the new place in line. The new card shows its link to share. Next: joining again could keep the party's link, so everyone already holding it follows the group back into line.
 - **One app server is assumed** (one clock, one writer); several restaurants would each get their own document.
 
 ## How I worked

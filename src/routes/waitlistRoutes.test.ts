@@ -450,6 +450,50 @@ describe("the party's link", () => {
     expect(await partyPageHtml(app, bensCookie)).toContain("Ben, party of 2");
   });
 
+  test("offers a browser without a party the join form from a friend's party, for a different group", async () => {
+    const app = await routes();
+    const anasCookie = partyCookie(await postJoin(app, ana));
+
+    const page = await (await app.request(partyPath(anasCookie))).text();
+
+    // Outside the live card, so a swapped-in card can't take it away.
+    expect(page).toContain(
+      '</live-card><p class="other-group secondary">Joining with a different group? <a href="/">Join the waitlist</a></p>',
+    );
+  });
+
+  test("offers a browser with a party of its own the way back to it from a friend's party", async () => {
+    const app = await routes();
+    const anasCookie = partyCookie(await postJoin(app, ana));
+    const bensCookie = partyCookie(
+      await postJoin(app, { name: "Ben", email: "ben@example.com", size: "2" }),
+    );
+
+    const page = await (
+      await app.request(partyPath(anasCookie), {
+        headers: { Cookie: bensCookie },
+      })
+    ).text();
+
+    expect(page).toContain(
+      '</live-card><p class="other-group secondary"><a href="/">Go to your party</a></p>',
+    );
+    expect(page).not.toContain("Joining with a different group?");
+  });
+
+  test("shows the party's own browser nothing below its card", async () => {
+    const app = await routes();
+    const anasCookie = partyCookie(await postJoin(app, ana));
+
+    const page = await (
+      await app.request(partyPath(anasCookie), {
+        headers: { Cookie: anasCookie },
+      })
+    ).text();
+
+    expect(page).not.toContain('class="other-group');
+  });
+
   test("opens a party's link that ends in a slash, as a messaging app may add one", async () => {
     const app = await routes();
     const anasCookie = partyCookie(await postJoin(app, ana));

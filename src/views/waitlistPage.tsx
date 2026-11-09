@@ -39,6 +39,10 @@ type PartyPageProps = {
   party: Party;
   state: PartyState;
   origin: string;
+  // Whose browser is looking: this party's own, one with a party of its
+  // own elsewhere (where / leads to that party), or one with none (where /
+  // shows the join form).
+  viewer: "this-party" | "other-party" | "no-party";
 };
 type JoinPageProps = {
   party?: undefined;
@@ -73,6 +77,22 @@ function WaitlistPage(props: WaitlistPageProps) {
             origin={props.origin}
           />
         </LiveCard>
+        {/* Someone else's party is otherwise a dead end: a friend sent the
+            link gets the join form, worded so the party's own group doesn't
+            take it as theirs and join twice; a browser with a party of its
+            own gets the way back to it. Outside the live card, so a
+            swapped-in card keeps it. */}
+        {props.viewer === "no-party" && (
+          <p className="other-group secondary">
+            {`${messages.joiningWithDifferentGroup} `}
+            <a href="/">{messages.joinTheWaitlist}</a>
+          </p>
+        )}
+        {props.viewer === "other-party" && (
+          <p className="other-group secondary">
+            <a href="/">{messages.goToYourParty}</a>
+          </p>
+        )}
       </Layout>
     );
   }

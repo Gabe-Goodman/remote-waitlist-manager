@@ -95,7 +95,17 @@ export function waitlistHandlers(waitlist: WaitlistService) {
       return c.html(unknownPartyPage(Boolean(ownParty)));
     }
     const { party, state } = found;
-    return c.html(partyPage({ party, state, origin: siteOrigin(c) }));
+    // Whose browser this is decides the way out offered below the card:
+    // the join form only where / would show it, the way back to its own
+    // party where / leads there.
+    const ownPartyToken = getCookie(c, partyTokenCookie);
+    const ownParty = ownPartyToken && (await waitlist.find(ownPartyToken));
+    const viewer = !ownParty
+      ? "no-party"
+      : ownParty.party.token === party.token
+        ? "this-party"
+        : "other-party";
+    return c.html(partyPage({ party, state, origin: siteOrigin(c), viewer }));
   }
 
   // The party's card on its own, which the card's live updates fetch. The
