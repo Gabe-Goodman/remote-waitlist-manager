@@ -43,7 +43,9 @@ Try the edges too: join twice with the same email, double-tap Join, leave the wa
 ### Storage and concurrency
 The whole waitlist is **one MongoDB document**, `{ _id: "main", version, parties: [...] }`, with the line in array order. It stores only facts (who joined, checked in, left, and when); waiting, ready, in service and done are worked out from those facts and the clock on every request, so nothing needs a background job.
 
-Every change is **read, apply a rule, save only if nobody saved in between**: `replaceOne({ _id: "main", version }, { version: version + 1, parties })`. MongoDB writes one document atomically, so if two diners save at once, one save wins and the other finds the version moved on, reads the waitlist again, reruns the rule on the fresh line and saves too, up to 10 tries (then "busy, please tap Join again"). That one check prevents lost updates, duplicates and overbooking. Why one document, its limits (16 MB, read size) and what I'd do in production are in [DECISIONS.md](DECISIONS.md).
+Every change is **read, apply a rule, save only if nobody saved in between**: `replaceOne({ _id: "main", version }, { version: version + 1, parties })`. MongoDB writes one document atomically, so if two diners save at once, one save wins and the other finds the version moved on, reads the waitlist again, reruns the rule on the fresh line and saves too, up to 10 tries (then "busy, please tap Join again"). That one check prevents lost updates, duplicates and overbooking.
+
+Every save also **forgets parties that finished or left more than a day ago**, in the same write. They're outside every rule, so nobody's place changes, and the document every request reads stays the size of one day instead of growing with history nothing reads. Tonight's links keep working; a link from a past day goes to the home page. Why one document, its limits (16 MB, read size) and what I'd do in production are in [DECISIONS.md](DECISIONS.md).
 
 ### Pages: server-rendered, with two islands
 Pattern: **Islands.** Every page is rendered on the server with React (`renderToString`), works without JavaScript, and is fast on a slow phone (TableKit's stylesheet and the page's scripts are inlined, so there's one request). Two small dependency-free scripts add interactivity:
@@ -159,7 +161,7 @@ The e2e tests start their own copy of the app and stop it when they finish, the 
 
 - **A no-show holds the line.** A ready party keeps its table until it checks in or leaves. Next: a host view to clear no-shows, or a check-in time limit that stores "ready since" the first time a request sees a party ready.
 - **No alerts on a locked phone.** The card updates while the page is open and refreshes when the phone is unlocked; nothing reaches a locked phone. Next: an email or text when the table is ready.
-- **The waitlist document only grows.** Finished parties stay in it, and every request reads all of it: fine for months of history, but the read size grows first. Next: move finished parties to a history collection, keeping only tonight's line in the document (see DECISIONS.md).
+- **No history is kept.** A party is deleted a day after it finishes or leaves, so there's nothing to report on. Next, if the restaurant wants reports: copy finished parties to a history collection before forgetting them (see DECISIONS.md).
 - **The link is the key to the party.** Anyone with it can see the party and check in, which is how a group shares one; it shows up in browser history. Next: email the link instead of relying on people keeping it private.
 - **One app server is assumed** (one clock, one writer); several restaurants would each get their own document.
 

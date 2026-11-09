@@ -342,3 +342,53 @@ describe("leaving", () => {
     }
   });
 });
+
+describe("forgetting finished parties", () => {
+  const twoDaysAgo = new Date(env.now().getTime() - 2 * 24 * 60 * 60 * 1000);
+  const longGone = {
+    token: "token-long-gone",
+    name: "Zoe",
+    email: "zoe@example.com",
+    size: 2,
+    joinedAt: twoDaysAgo,
+    leftAt: twoDaysAgo,
+  };
+
+  /** A store holding a party that left two days ago, and Ana, waiting. */
+  async function storeWithHistory() {
+    const store = await emptyStore();
+    await store.saveIfVersion({ parties: [longGone] }, 0);
+    const ana = await joined(store, "Ana", 2);
+    return { store, ana };
+  }
+
+  test("forgets a party that left days ago when the next party joins", async () => {
+    const { store, ana } = await storeWithHistory();
+
+    const { waitlist } = await store.load();
+    expect(waitlist.parties.map((p) => p.token)).toEqual([ana.token]);
+  });
+
+  test("forgets it on a check-in and on a leave too", async () => {
+    for (const write of ["checkIn", "leave"] as const) {
+      const store = await emptyStore();
+      const ana = await joined(store, "Ana", 2);
+      const { version } = await store.load();
+      await store.saveIfVersion({ parties: [longGone, ana] }, version);
+
+      const outcome = await waitlistService(store, env)[write](ana.token);
+
+      expect(outcome.ok).toBe(true);
+      const { waitlist } = await store.load();
+      expect(waitlist.parties.map((p) => p.token)).toEqual([ana.token]);
+    }
+  });
+
+  test("shows a forgotten party's link as not found", async () => {
+    const { store } = await storeWithHistory();
+
+    expect(await waitlistService(store, env).find(longGone.token)).toBe(
+      undefined,
+    );
+  });
+});
