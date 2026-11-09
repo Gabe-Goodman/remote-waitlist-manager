@@ -74,7 +74,7 @@ test("lets the next party check in once a service ends, and the first join again
   await checkInButton(otherPage).click();
   await expect(heading(otherPage, "You're checked in")).toBeVisible();
 
-  await reloadUntilVisible(page, heading(page, "Thanks for dining with us"));
+  await reloadUntilVisible(page, heading(page, "Thanks for dining"));
 
   // Ana comes back: her name and email are filled in, the size is asked
   // again, and her finished party no longer holds her email.

@@ -638,8 +638,8 @@ describe("checking in", () => {
     clock.advance(6000);
     const html = await partyPageHtml(app, anasCookie);
 
-    expect(html).toContain("<title>Thanks for dining with us</title>");
-    expect(html).toContain("<h1>Thanks for dining with us</h1>");
+    expect(html).toContain("<title>Thanks for dining</title>");
+    expect(html).toContain("<h1>Thanks for dining</h1>");
     expect(html).toContain("Ana, party of 2");
     expect(html).not.toContain('id="party-link"');
   });
@@ -721,7 +721,7 @@ describe("joining again", () => {
     expect(html).toMatch(/<option value="" disabled="" selected="">/);
     expect(response.headers.get("Set-Cookie")).toBeNull();
     expect(await partyPageHtml(app, anasCookie)).toContain(
-      "<h1>Thanks for dining with us</h1>",
+      "<h1>Thanks for dining</h1>",
     );
   });
 

@@ -55,7 +55,7 @@ export const cardTitles: Record<PartyState["kind"], string> = {
   waiting: "You're on the waitlist",
   ready: "Your table is ready!",
   "in-service": "You're checked in",
-  done: "Thanks for dining with us",
+  done: "Thanks for dining",
   left: "You've left the waitlist",
 };
 
