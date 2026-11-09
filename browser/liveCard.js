@@ -7,10 +7,10 @@
 // a plain wrapper, and the page shows the right state on every load.
 //
 // The loop: every 2 seconds, fetch the card from src, one request at a time.
-// If it changed, put the new card in place of the old one. If the fetch
-// fails, keep the card already shown. When the page becomes visible again (a
-// phone taken out of a pocket), fetch at once. Once the card can't change any
-// more (done or left), stop.
+// If it differs from the last card the server sent, put the new card in
+// place of the old one. If the fetch fails, keep the card already shown.
+// When the page becomes visible again (a phone taken out of a pocket), fetch
+// at once. Once the card can't change any more (done or left), stop.
 (() => {
   // These cards stay as they are: nothing left to poll for.
   const finalStates = ["done", "left"];
@@ -19,8 +19,17 @@
     /** @type {ReturnType<typeof setTimeout> | undefined} */
     #timer;
     #fetching = false;
+    // The last card the server sent, which each new one is compared with.
+    // Not the card in the page: the diner (opening Leave) or a browser
+    // extension (marking the link's field) changes that, and the card would
+    // be swapped every 2 seconds, ringing the bell each time.
+    /** @type {string | undefined} */
+    #lastCard;
 
-    #start = () => this.#schedule();
+    #start = () => {
+      this.#lastCard = this.#card()?.outerHTML;
+      this.#schedule();
+    };
     #onVisible = () => {
       if (document.visibilityState === "visible") void this.#refresh();
     };
@@ -82,7 +91,8 @@
       if (!oldCard || !newCard) return;
       // Most polls bring the same card: leave the page alone, so nothing
       // flickers and nothing the diner is reading or selecting is lost.
-      if (newCard.outerHTML === oldCard.outerHTML) return;
+      if (newCard.outerHTML === this.#lastCard) return;
+      this.#lastCard = newCard.outerHTML;
 
       const leaveWasOpen = isLeaveOpen(oldCard);
       const wasReady = oldCard.dataset.state === "ready";

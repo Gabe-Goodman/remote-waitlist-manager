@@ -49,7 +49,7 @@ Every save also **forgets parties that finished or left more than a day ago**, i
 
 ### Pages: server-rendered, with two islands
 Pattern: **Islands.** Every page is rendered on the server with React (`renderToString`), works without JavaScript, and is fast on a slow phone (TableKit's stylesheet and the page's scripts are inlined, so there's one request). Two small dependency-free islands add interactivity. Each is a custom element, the same shape as Astro's `<astro-island>`: a wrapper around its part of the page, its settings as attributes, and its own setup and cleanup. It finds everything it uses inside itself, so it works wherever it's put, including inside a card the live update swaps in, and it brings its own script: a page that renders an island's element gets that island's script in its `<head>`. Without JavaScript each is a plain wrapper.
-- **`<live-card src="/party/<token>/card">`** (`browser/liveCard.js`) fetches the party's card every 2 seconds, one request at a time, and swaps it in when it changed; it refreshes at once when the phone is unlocked, and sets the tab title and vibrates when the table is ready;
+- **`<live-card src="/party/<token>/card">`** (`browser/liveCard.js`) fetches the party's card every 2 seconds, one request at a time, and swaps it in when it differs from the last card the server sent; it refreshes at once when the phone is unlocked, and sets the tab title and vibrates when the table is ready;
 - **`<copy-link>`** (`browser/copyLink.js`) holds the link's field and its Copy button, and copies the party's link.
 
 No React runs in the browser: the live card swaps in HTML the server rendered, so there is one renderer and nothing to hydrate.
