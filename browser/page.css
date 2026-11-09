@@ -65,9 +65,10 @@ select {
   margin-top: var(--spacing-l1);
 }
 /* The card's heading in TableKit's h2 size, not the page title's h1: the
-   panel below it is what the diner looks for, and at this size every
-   state's heading fits one line on a 360px phone, so the card doesn't jump
-   when a heading that wrapped turns into one that doesn't. Still an <h1>
+   panel below it is what the diner looks for, and at this size the
+   headings the live update swaps in place fit one line on a 360px phone,
+   so the card doesn't jump when a heading that wrapped turns into one that
+   doesn't. Still an <h1>
    for screen readers and the page outline. The h1's weight keeps it a
    heading: TableKit's h2 is regular weight, so on its own it reads like
    the text below it. */
