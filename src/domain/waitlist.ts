@@ -320,3 +320,25 @@ export function leaveWaitlist(
   const parties = waitlist.parties.map((p) => (p === party ? left : p));
   return { ok: true, waitlist: { parties }, party: left };
 }
+
+// Long enough that tonight's party links and "Join the waitlist again" keep
+// working; short enough that the document stays the size of one evening.
+export const keepFinishedMs = 24 * 60 * 60 * 1000;
+
+/**
+ * The waitlist without the parties whose service ended, or that left, at
+ * least a day ago. Such a party is outside every rule (not in the queue,
+ * holding no seats, blocking no email or join key), so forgetting it changes
+ * nobody's place or state. It only keeps the one document, which every
+ * request reads, from growing with history nothing reads.
+ */
+export function pruneFinished(waitlist: Waitlist, now: Date): Waitlist {
+  const cutoff = now.getTime() - keepFinishedMs;
+  const finishedAt = (party: Party) => party.leftAt ?? serviceEndsAt(party);
+  return {
+    parties: waitlist.parties.filter((party) => {
+      const at = finishedAt(party);
+      return at === undefined || at.getTime() > cutoff;
+    }),
+  };
+}

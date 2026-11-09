@@ -7,10 +7,12 @@ import {
   leaveWaitlist,
   partiesWaiting,
   partyState,
+  pruneFinished,
   type FieldErrors,
   type JoinForm,
   type Party,
   type PartyState,
+  type Waitlist,
 } from "../domain/waitlist.js";
 import type { WaitlistStore } from "../storage/waitlistStore.js";
 
@@ -58,6 +60,21 @@ export async function retryOnConflict<T>(
 const maxAttempts = 10;
 
 /**
+ * Every save goes through here: it forgets parties that finished more than
+ * a day ago, in the same versioned write, so the document stays the size of
+ * one evening without a background job. Only writes add parties, so pruning
+ * on writes is enough.
+ */
+function save(
+  store: WaitlistStore,
+  waitlist: Waitlist,
+  version: number,
+  now: Date,
+): Promise<"saved" | "conflict"> {
+  return store.saveIfVersion(pruneFinished(waitlist, now), version);
+}
+
+/**
  * Adds a party to the waitlist. Each attempt reloads and re-runs the rule,
  * so a duplicate that slipped in during a conflict is still caught.
  */
@@ -75,7 +92,7 @@ async function joinAndSave(
     // only bump the version and make concurrent writes retry for nothing.
     if (!result.created) return { ok: true as const, party: result.party };
 
-    const saved = await store.saveIfVersion(result.waitlist, version);
+    const saved = await save(store, result.waitlist, version, context.now);
     if (saved === "conflict") return "conflict";
     return { ok: true as const, party: result.party };
   }, maxAttempts);
@@ -95,10 +112,11 @@ async function checkInAndSave(
 ): Promise<CheckInOutcome> {
   const outcome = await retryOnConflict(async () => {
     const { waitlist, version } = await store.load();
-    const result = checkIn(waitlist, token, env.now());
+    const now = env.now();
+    const result = checkIn(waitlist, token, now);
     if (!result.ok) return result;
 
-    const saved = await store.saveIfVersion(result.waitlist, version);
+    const saved = await save(store, result.waitlist, version, now);
     if (saved === "conflict") return "conflict";
     return { ok: true as const, party: result.party };
   }, maxAttempts);
@@ -118,10 +136,11 @@ async function leaveAndSave(
 ): Promise<LeaveOutcome> {
   const outcome = await retryOnConflict(async () => {
     const { waitlist, version } = await store.load();
-    const result = leaveWaitlist(waitlist, token, env.now());
+    const now = env.now();
+    const result = leaveWaitlist(waitlist, token, now);
     if (!result.ok) return result;
 
-    const saved = await store.saveIfVersion(result.waitlist, version);
+    const saved = await save(store, result.waitlist, version, now);
     if (saved === "conflict") return "conflict";
     return { ok: true as const, party: result.party };
   }, maxAttempts);

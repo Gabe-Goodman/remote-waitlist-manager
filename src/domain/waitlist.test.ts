@@ -9,10 +9,12 @@ import {
   partiesWaiting,
   partyPlace,
   partyState,
+  pruneFinished,
   readyParties,
   seatCount,
   seatsAvailable,
   serviceEndsAt,
+  serviceMsPerPerson,
   validateJoin,
   type Party,
 } from "./waitlist.js";
@@ -718,5 +720,85 @@ describe("leaving", () => {
       undefined,
       undefined,
     ]);
+  });
+});
+
+describe("forgetting finished parties", () => {
+  const now = new Date("2026-11-08T18:00:00Z");
+  const hoursAgo = (hours: number) =>
+    new Date(now.getTime() - hours * 60 * 60 * 1000);
+
+  test("forgets a party whose service ended or that left more than a day ago", () => {
+    const waitlist = {
+      parties: [
+        // A party of 2 is served for 6 seconds, so its service ended a day
+        // and 6 seconds after it checked in.
+        partyNamed("Ana", { checkedInAt: hoursAgo(25) }),
+        partyNamed("Ben", { leftAt: hoursAgo(25) }),
+        partyNamed("Cy"),
+      ],
+    };
+
+    expect(pruneFinished(waitlist, now).parties.map((p) => p.name)).toEqual([
+      "Cy",
+    ]);
+  });
+
+  test("keeps a party that finished or left within the last day, so its link still works tonight", () => {
+    const waitlist = {
+      parties: [
+        partyNamed("Ana", { checkedInAt: hoursAgo(23) }),
+        partyNamed("Ben", { leftAt: hoursAgo(23) }),
+      ],
+    };
+
+    expect(pruneFinished(waitlist, now)).toEqual(waitlist);
+  });
+
+  test("forgets a party exactly a day after its service ended", () => {
+    const serviceEnded = hoursAgo(24);
+    const ana = partyNamed("Ana", {
+      checkedInAt: new Date(serviceEnded.getTime() - 2 * serviceMsPerPerson),
+    });
+    const almost = new Date(now.getTime() - 1);
+
+    expect(pruneFinished({ parties: [ana] }, almost).parties).toEqual([ana]);
+    expect(pruneFinished({ parties: [ana] }, now).parties).toEqual([]);
+  });
+
+  test("never forgets a party still waiting, ready or in service, however long ago it joined", () => {
+    const longAgo = hoursAgo(24 * 30);
+    const waitlist = {
+      parties: [
+        partyNamed("Ana", { size: 6, joinedAt: longAgo, checkedInAt: now }),
+        partyNamed("Ben", { size: 4, joinedAt: longAgo }),
+        partyNamed("Cy", { joinedAt: longAgo }),
+      ],
+    };
+
+    expect(pruneFinished(waitlist, now)).toEqual(waitlist);
+  });
+
+  test("changes nobody's place or state", () => {
+    const waitlist = {
+      parties: [
+        partyNamed("Ana", { checkedInAt: hoursAgo(48) }),
+        partyNamed("Ben", { size: 6, checkedInAt: now }),
+        partyNamed("Cy", { leftAt: hoursAgo(30) }),
+        partyNamed("Dee", { size: 4 }),
+        partyNamed("Eve"),
+      ],
+    };
+
+    const pruned = pruneFinished(waitlist, now);
+
+    for (const name of ["Ben", "Dee", "Eve"]) {
+      const token = `token-${name}`;
+      expect(partyState(pruned, token, now)).toEqual(
+        partyState(waitlist, token, now),
+      );
+    }
+    expect(seatsAvailable(pruned, now)).toBe(seatsAvailable(waitlist, now));
+    expect(partiesWaiting(pruned)).toBe(partiesWaiting(waitlist));
   });
 });
