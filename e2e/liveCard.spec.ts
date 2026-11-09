@@ -59,7 +59,7 @@ test("shows the Check-in button the moment the table is ready, without a reload"
   // short service ends.
   await otherPage.getByText("Leave the waitlist").click();
   await otherPage.getByRole("button", { name: "Yes, leave" }).click();
-  await expect(heading(otherPage, "You've left the waitlist.")).toBeVisible();
+  await expect(heading(otherPage, "You've left the waitlist")).toBeVisible();
 
   await other.close();
 });

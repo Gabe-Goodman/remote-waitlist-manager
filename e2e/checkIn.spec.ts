@@ -57,7 +57,7 @@ test("lets the next party check in once a service ends, and the first join again
   await expect(checkInButton(otherPage)).toBeHidden();
 
   await checkInButton(page).click();
-  await expect(heading(page, "You're checked in.")).toBeVisible();
+  await expect(heading(page, "You're checked in")).toBeVisible();
   await expect(page.getByText("Enjoy your meal.")).toBeVisible();
 
   // Seated, Ana has left the queue: Ben is next, but her seat is still taken.
@@ -72,9 +72,9 @@ test("lets the next party check in once a service ends, and the first join again
     heading(otherPage, "Your table is ready!"),
   );
   await checkInButton(otherPage).click();
-  await expect(heading(otherPage, "You're checked in.")).toBeVisible();
+  await expect(heading(otherPage, "You're checked in")).toBeVisible();
 
-  await reloadUntilVisible(page, heading(page, "Thanks for dining with us."));
+  await reloadUntilVisible(page, heading(page, "Thanks for dining"));
 
   // Ana comes back: her name and email are filled in, the size is asked
   // again, and her finished party no longer holds her email.

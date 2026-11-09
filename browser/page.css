@@ -64,6 +64,68 @@ select {
   color: var(--error);
   margin-top: var(--spacing-l1);
 }
+/* The card's heading in TableKit's h2 size, not the page title's h1: the
+   panel below it is what the diner looks for, and at this size the
+   headings the live update swaps in place fit one line on a 360px phone,
+   so the card doesn't jump when a heading that wrapped turns into one that
+   doesn't. Still an <h1>
+   for screen readers and the page outline. The h1's weight keeps it a
+   heading: TableKit's h2 is regular weight, so on its own it reads like
+   the text below it. */
+.card h1 {
+  font: var(--h2);
+  font-weight: var(--h1-font-weight);
+}
+/* The state's icon at the right edge of the panel that says where the
+   party stands, centred against its words. */
+.place {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-l4);
+}
+/* 2.5em of the panel's 16px text: 40px, clear at a glance without
+   competing with the words, and an even 1.25 times Carbon's 32px grid, so
+   it stays crisp. */
+.state-icon {
+  flex: none;
+  width: 2.5em;
+  height: 2.5em;
+  color: var(--text-subtle);
+}
+/* The bell rings once when the table is ready: the one moment worth
+   catching the eye, alongside the vibration and the tab title. It plays
+   when the ready card appears, on a page load or when the live update
+   swaps it in, and never repeats. Waiting doesn't move: minutes of a
+   turning hourglass would read as "loading" and pull the eye for nothing.
+   Not at all for diners who ask their phone for less motion. */
+@media (prefers-reduced-motion: no-preference) {
+  .card[data-state="ready"] .state-icon {
+    transform-origin: 50% 4%;
+    animation: ring 1s ease-in-out;
+  }
+}
+@keyframes ring {
+  0%,
+  100% {
+    transform: rotate(0);
+  }
+  15% {
+    transform: rotate(18deg);
+  }
+  30% {
+    transform: rotate(-16deg);
+  }
+  45% {
+    transform: rotate(12deg);
+  }
+  60% {
+    transform: rotate(-8deg);
+  }
+  75% {
+    transform: rotate(4deg);
+  }
+}
 /* The one emphasis: where you stand, in a quiet TableKit panel. */
 .place {
   background: var(--neutral-surface);

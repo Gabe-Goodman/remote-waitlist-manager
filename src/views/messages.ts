@@ -46,13 +46,17 @@ export const messages = {
   tryAgain: "Try again",
 } as const;
 
-/** The card's heading, which is also the page's title, for each state. */
+/**
+ * The card's heading, which is also the page's title, for each state. No
+ * full stops, like every heading and tab title; the one exclamation mark is
+ * the news the diner is waiting for.
+ */
 export const cardTitles: Record<PartyState["kind"], string> = {
   waiting: "You're on the waitlist",
   ready: "Your table is ready!",
-  "in-service": "You're checked in.",
-  done: "Thanks for dining with us.",
-  left: "You've left the waitlist.",
+  "in-service": "You're checked in",
+  done: "Thanks for dining",
+  left: "You've left the waitlist",
 };
 
 /** Form-level notices, shown in the box at the top of the form. */

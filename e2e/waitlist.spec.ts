@@ -132,7 +132,7 @@ test("leaves after a second tap, then joins again with name and email filled in"
   await leaveButton.click();
 
   await expect(
-    page.getByRole("heading", { name: "You've left the waitlist." }),
+    page.getByRole("heading", { name: "You've left the waitlist" }),
   ).toBeVisible();
   await page.getByRole("link", { name: "Join the waitlist again" }).click();
   await expect(page.getByLabel("Name")).toHaveValue("Fay");

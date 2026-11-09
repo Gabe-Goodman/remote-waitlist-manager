@@ -24,7 +24,7 @@ The restaurant has 10 seats, and a party is served for 3 seconds per person. Use
 
 1. **Browser A:** join as a party of **2**. Your table is ready at once: "Your table is ready! Check in now."
 2. **Browser B:** join as a party of **9**. A holds 2 seats and 2 + 9 > 10, so B waits: "1 party ahead of you."
-3. **A:** tap **Check in**. A is seated for 6 seconds ("Enjoy your meal."), then the card turns to "Thanks for dining with us." on its own. Meanwhile B, without reloading, shows "You're next. Stay close and keep this page open."
+3. **A:** tap **Check in**. A is seated for 6 seconds ("Enjoy your meal."), then the card turns to "Thanks for dining" on its own. Meanwhile B, without reloading, shows "You're next. Stay close and keep this page open."
 4. **B**, still without reloading: the moment A's meal ends, B's card turns to "Your table is ready!" with the Check-in button, and the tab title changes.
 5. Copy **B's link** (the address bar, or "Your party's link") into browser A: A now shows B's card, and tapping Check in there checks in B. Anyone with the link can act for the party.
 6. On a finished or left card, "Join the waitlist again" opens the form with the name and email filled in; the party goes to the back of the line.
@@ -53,6 +53,8 @@ Pattern: **Islands.** Every page is rendered on the server with React (`renderTo
 - **the Copy button** (`browser/copyLink.js`) copies the party's link.
 
 No React runs in the browser: the live card swaps in HTML the server rendered, so there is one renderer and nothing to hydrate.
+
+Icons (IBM's Carbon set, which TableKit's React components use) are inline SVGs rendered with the page: one at the right of the panel that says where the party stands while something is happening (waiting, ready, checked in), next to the words that say the same thing. The bell rings once when the table is ready, unless the phone is set to reduce motion.
 
 ### URLs
 
