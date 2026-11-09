@@ -49,7 +49,7 @@
 ### Forgetting finished parties
 - Every save goes through one function in the service that drops parties whose service ended, or that left, at least 24 hours ago (`pruneFinished`, a pure rule in the domain), inside the same versioned write. There's no background job: only writes add parties, so pruning on writes is enough to keep the document the size of one day.
 - Such a party is outside every rule: it isn't in the queue, holds no seats and blocks no email or join key. So forgetting it changes nobody's place or state (a unit test checks this), and the version check and the other rules didn't change.
-- A day, not a few minutes: tonight's party links and "Join the waitlist again" keep working. After that, an old link shows "We couldn't find that party" (see Finding your party again), a card left open stops updating, and "Join the waitlist again" opens an empty form.
+- A day, not a few minutes: tonight's party links and "Join the waitlist again" keep working. After that, an old link shows "We couldn't find this party" (see Finding your party again), a card left open stops updating, and "Join the waitlist again" opens an empty form.
 - Deleted, not moved to a history collection: nothing in the app reads history, and keeping it would mean two writes per prune and a crash case to handle. If the restaurant wants reporting, that's when to add a `parties_history` collection (insert the copy first, then remove it through the version check, so a crash leaves at worst a duplicate history record, never a lost party).
 
 ### What I'd do in production

@@ -46,9 +46,9 @@ export const messages = {
   copiedLink: "Link copied",
   errorTitle: "Something went wrong",
   tryAgain: "Try again",
-  unknownPartyTitle: "We couldn't find that party",
+  unknownPartyTitle: "We couldn't find this party",
   unknownPartyText:
-    "That party's visit may be over, or the link may be cut off. If someone sent it to you, ask them for it again.",
+    "The visit may be over, or the link may be incomplete. If someone sent it to you, ask them to send it again.",
   goToYourParty: "Go to your party",
   joinTheWaitlist: "Join the waitlist",
 } as const;

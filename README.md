@@ -62,7 +62,7 @@ Icons (IBM's Carbon set, which TableKit's React components use) are inline SVGs 
 |---|---|---|
 | GET | `/` | The join form; a browser that has a party goes to its page. `?rejoin=<token>`: the form filled in from a party whose visit is over (empty on any browser but the one that joined as that party). |
 | POST | `/parties` | Join (the form). On success, to the party's page. |
-| GET | `/party/:token` | The party's own page: its state, its link, Check in and Leave. The address bar is the link to share. A token that matches no party: 404, "We couldn't find that party", with one link to `/` ("Go to your party" or "Join the waitlist"). |
+| GET | `/party/:token` | The party's own page: its state, its link, Check in and Leave. The address bar is the link to share. A token that matches no party: 404, "We couldn't find this party", with one link to `/` ("Go to your party" or "Join the waitlist"). |
 | GET | `/party/:token/card` | The card alone, for the live update. |
 | POST | `/party/:token/check-in` | Check the party in, if its table is ready. |
 | POST | `/party/:token/leave` | Take the party off the waitlist. |

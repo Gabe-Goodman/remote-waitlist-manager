@@ -461,9 +461,9 @@ describe("the party's link", () => {
 
     expect(response.status).toBe(404);
     expect(response.headers.get("Set-Cookie")).toBeNull();
-    expect(page).toContain("<h1>We couldn&#x27;t find that party</h1>");
+    expect(page).toContain("<h1>We couldn&#x27;t find this party</h1>");
     expect(page).toContain(
-      "That party&#x27;s visit may be over, or the link may be cut off. If someone sent it to you, ask them for it again.",
+      "The visit may be over, or the link may be incomplete. If someone sent it to you, ask them to send it again.",
     );
     expect(page).toContain('<a href="/">Go to your party</a>');
     expect(page).not.toContain("Ana");
@@ -474,7 +474,7 @@ describe("the party's link", () => {
     const page = await response.text();
 
     expect(response.status).toBe(404);
-    expect(page).toContain("<h1>We couldn&#x27;t find that party</h1>");
+    expect(page).toContain("<h1>We couldn&#x27;t find this party</h1>");
     expect(page).toContain('<a href="/">Join the waitlist</a>');
   });
 
