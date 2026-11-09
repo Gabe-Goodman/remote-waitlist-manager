@@ -4,6 +4,10 @@
 // sets up whenever it's added to the page: on load, or inside a card the live
 // update swaps in. Without JavaScript an island is a plain wrapper, and the
 // page works as it is.
+//
+// An island brings its own script: rendering its element is all it takes.
+// toHtml (html.ts) puts the script of each island a page shows in that page's
+// <head>, so no page lists the scripts it needs.
 import type { ReactNode } from "react";
 import { copyLinkJs, liveCardJs } from "./browserFiles.js";
 
@@ -18,8 +22,23 @@ declare module "react" {
   }
 }
 
-/** The script that defines both islands, for the <head> of a page that shows them. */
-export const islandsJs = `${copyLinkJs}\n${liveCardJs}`;
+// Each island's element and the script that defines it.
+const islandScripts = {
+  "live-card": liveCardJs,
+  "copy-link": copyLinkJs,
+} as const;
+
+/**
+ * The scripts of the islands in this rendered HTML, as one <script>, or ""
+ * when it shows none. A diner's text can't pass for an element: React
+ * escapes its "<".
+ */
+export function scriptsFor(html: string): string {
+  const scripts = Object.entries(islandScripts)
+    .filter(([tag]) => new RegExp(`<${tag}[\\s>]`).test(html))
+    .map(([, script]) => script);
+  return scripts.length === 0 ? "" : `<script>${scripts.join("\n")}</script>`;
+}
 
 /**
  * Keeps the card inside it up to date while the page is open, fetching it

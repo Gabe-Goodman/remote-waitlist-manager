@@ -11,7 +11,7 @@ import {
   type PartyState,
 } from "../domain/waitlist.js";
 import { toHtml } from "./html.js";
-import { islandsJs, LiveCard } from "./islands.js";
+import { LiveCard } from "./islands.js";
 import { Layout } from "./layout.js";
 import {
   cardTitles,
@@ -65,7 +65,7 @@ export function joinPage(props: JoinPageProps): string {
 function WaitlistPage(props: WaitlistPageProps) {
   if (props.party) {
     return (
-      <Layout title={cardTitles[props.state.kind]} script={islandsJs}>
+      <Layout title={cardTitles[props.state.kind]}>
         <LiveCard src={`/party/${props.party.token}/card`}>
           <PartyCard
             party={props.party}

@@ -956,8 +956,30 @@ describe("the card on its own", () => {
     // The card it fetches is the card alone, swapped in inside the island.
     expect(card).not.toContain("live-card");
     expect(card).not.toContain("<script");
-    // The join form has no islands, so no script.
-    expect(await (await app.request("/")).text()).not.toContain("<script");
+  });
+
+  test("brings each island's script to exactly the pages that show the island", async () => {
+    const clock = movableClock();
+    const app = waitlistRoutes(waitlistService(await emptyStore(), clock.env));
+    const anasCookie = partyCookie(await postJoin(app, ana));
+    await postCheckIn(app, anasCookie);
+    // A party of 2 is served for 2 × 3 seconds.
+    clock.advance(6000);
+
+    const finished = await partyPageHtml(app, anasCookie);
+    const joinForm = await (await app.request("/")).text();
+    const liveCardJs = readFileSync("browser/liveCard.js", "utf8");
+    const copyLinkJs = readFileSync("browser/copyLink.js", "utf8");
+
+    // A finished party's page shows the live card but has no link to copy,
+    // so it gets the live card's script and not the Copy button's.
+    const body = /<body>[\s\S]*<\/body>/.exec(finished)?.[0] ?? "";
+    expect(body).toContain("<live-card");
+    expect(body).not.toContain("<copy-link");
+    expect(finished.includes(liveCardJs)).toBe(true);
+    expect(finished.includes(copyLinkJs)).toBe(false);
+    // The join form shows no islands, so it gets no script.
+    expect(joinForm).not.toContain("<script");
   });
 
   test("sends nothing for a party that isn't on the waitlist", async () => {

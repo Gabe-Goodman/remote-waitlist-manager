@@ -48,7 +48,7 @@ Every change is **read, apply a rule, save only if nobody saved in between**: `r
 Every save also **forgets parties that finished or left more than a day ago**, in the same write. They're outside every rule, so nobody's place changes, and the document every request reads stays the size of one day instead of growing with history nothing reads. Tonight's links keep working; a link from a past day goes to the home page. Why one document, its limits (16 MB, read size) and what I'd do in production are in [DECISIONS.md](DECISIONS.md).
 
 ### Pages: server-rendered, with two islands
-Pattern: **Islands.** Every page is rendered on the server with React (`renderToString`), works without JavaScript, and is fast on a slow phone (TableKit's stylesheet and the page's scripts are inlined, so there's one request). Two small dependency-free islands add interactivity. Each is a custom element, the same shape as Astro's `<astro-island>`: a wrapper around its part of the page, its settings as attributes, and its own setup and cleanup. It finds everything it uses inside itself, so it works wherever it's put, including inside a card the live update swaps in. Without JavaScript each is a plain wrapper.
+Pattern: **Islands.** Every page is rendered on the server with React (`renderToString`), works without JavaScript, and is fast on a slow phone (TableKit's stylesheet and the page's scripts are inlined, so there's one request). Two small dependency-free islands add interactivity. Each is a custom element, the same shape as Astro's `<astro-island>`: a wrapper around its part of the page, its settings as attributes, and its own setup and cleanup. It finds everything it uses inside itself, so it works wherever it's put, including inside a card the live update swaps in, and it brings its own script: a page that renders an island's element gets that island's script in its `<head>`. Without JavaScript each is a plain wrapper.
 - **`<live-card src="/party/<token>/card">`** (`browser/liveCard.js`) fetches the party's card every 2 seconds, one request at a time, and swaps it in when it changed; it refreshes at once when the phone is unlocked, and sets the tab title and vibrates when the table is ready;
 - **`<copy-link>`** (`browser/copyLink.js`) holds the link's field and its Copy button, and copies the party's link.
 
@@ -80,7 +80,7 @@ src/                         what runs on the server
 ├── services/                use cases: load → rule → save if unchanged → retry on conflict
 ├── storage/                 MongoDB only: the one versioned document
 ├── routes/                  HTTP only: waitlistRoutes.ts lists the URLs, waitlistHandlers.ts says what each does
-├── views/                   render only: React components that return finished HTML; islands.tsx has the islands' components (LiveCard, CopyLink) and the script that defines them; messages.ts holds every word a diner reads
+├── views/                   render only: React components that return finished HTML; islands.tsx has the islands' components (LiveCard, CopyLink), and a page gets the script of each island it shows; messages.ts holds every word a diner reads
 └── server.ts                wiring: settings, MongoDB, the real clock, graceful shutdown
 e2e/                         Playwright journeys in a phone-sized browser
 ```
